@@ -1,0 +1,33 @@
+{
+  "name": "roll-your-own-auth",
+  "version": "0.0.1",
+  "description": "Roll your own auth to your apps.",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "roll-your-own-auth",
+    "url": "https://x.com/smakosh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smakosh/roll-your-own-auth.git",
+    "directory": "packages/cli"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "auth",
+    "sessions",
+    "jwt",
+    "sso"
+  ],
+  "type": "module",
+  "exports": "./dist/index.js",
+  "bin": "./dist/index.js",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {}
+}
