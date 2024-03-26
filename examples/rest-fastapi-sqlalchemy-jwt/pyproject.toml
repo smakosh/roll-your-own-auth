@@ -1,0 +1,36 @@
+[tool.ruff.lint]
+mccabe = { max-complexity = 14 }
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["pydantic", "typing_extensions", "sqlalchemy"]
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+[tool.mypy]
+strict = true
+plugins = 'pydantic.mypy'
+
+
+[tool.pytest.ini_options]
+testpaths = 'tests'
+log_cli = "1"
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format= "%Y-%m-%d %H:%M:%S"
+asyncio_mode= "auto"
+filterwarnings = [
+    'error',
+    'ignore::DeprecationWarning',
+]

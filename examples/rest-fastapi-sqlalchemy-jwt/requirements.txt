@@ -1,0 +1,8 @@
+fastapi
+sqlalchemy
+pydantic
+httpx
+python-multipart
+alembic
+uvicorn
+pydantic-settings
