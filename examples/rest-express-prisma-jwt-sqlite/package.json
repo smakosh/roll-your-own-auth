@@ -1,5 +1,5 @@
 {
-    "name": "rest-express-prisma-sessions-sqlite",
+    "name": "rest-express-prisma-jwt-sqlite",
     "version": "1.0.0",
     "description": "",
     "main": "./src/server.js",
@@ -11,8 +11,8 @@
     },
     "keywords": [],
     "author": {
-        "name": "Smakosh",
-        "url": "https://smakosh.com"
+        "name": "Pipas",
+        "url": "https://x.com/pipas_dev"
     },
     "license": "MIT",
     "devDependencies": {

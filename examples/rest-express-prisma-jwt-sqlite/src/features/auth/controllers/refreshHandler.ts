@@ -23,6 +23,7 @@ export const refreshHandler = (req: Request, res: Response) => {
         ),
         secure: true,
         httpOnly: true,
+        sameSite: "lax",
     });
 
     return res.json({ access_token }).status(200);

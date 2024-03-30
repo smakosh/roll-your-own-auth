@@ -7,7 +7,6 @@ import {
 } from "passport-jwt";
 
 const fromCookie = (cookieName: string) => (req: Request) => {
-    console.log(req.cookies[cookieName]);
     return req.cookies[cookieName];
 };
 
