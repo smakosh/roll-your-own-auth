@@ -1,0 +1,26 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "Piipas",
+      "name": "Pipas",
+      "avatar_url": "https://avatars.githubusercontent.com/u/73344068?v=4",
+      "profile": "https://lcomeback.com",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "skipCi": true,
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "projectName": "roll-your-own-auth",
+  "projectOwner": "smakosh"
+}
