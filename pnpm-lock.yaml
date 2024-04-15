@@ -53,9 +53,6 @@ importers:
       express:
         specifier: ^4.18.2
         version: 4.19.2
-      express-session:
-        specifier: ^1.17.3
-        version: 1.18.0
       helmet:
         specifier: ^7.0.0
         version: 7.1.0
@@ -87,9 +84,6 @@ importers:
       '@types/express':
         specifier: ^4.17.17
         version: 4.17.21
-      '@types/express-session':
-        specifier: ^1.17.7
-        version: 1.18.0
       '@types/jsonwebtoken':
         specifier: ^9.0.2
         version: 9.0.6
