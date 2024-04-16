@@ -14,7 +14,8 @@ You can use this in order to build your own auth system.
 
 ### Getting started
 
-TBD
+[Go here](https://roll-your-own-auth.vercel.app/)
+
 ## Contributors ✨
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):

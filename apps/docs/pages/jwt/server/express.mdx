@@ -1,9 +1,9 @@
-import { Callout, FileTree, Steps } from 'nextra/components'
+import { FileTree, Steps } from 'nextra/components'
 
 ## Use the CLI (not yet supported)
 
 ```bash copy
-npx ryo-auth@latest add session-express-prisma
+npx ryo-auth@latest add jwt-express-prisma
 ```
 
 ## Manual Installation
@@ -20,6 +20,7 @@ npx ryo-auth@latest add session-express-prisma
           <FileTree.File name="signupHandler.ts" />
           <FileTree.File name="meHandler.ts" />
           <FileTree.File name="logoutHandler.ts" />
+          <FileTree.File name="refreshHandler.ts" />
         </FileTree.Folder>
         <FileTree.Folder name="middlewares">
           <FileTree.File name="validate.ts" />
@@ -44,13 +45,13 @@ npx ryo-auth@latest add session-express-prisma
 ### Install dependencies
  
 ```bash npm2yarn copy
-npm i dotenv express express-session cors redis passport connect-redis argon2 zod cookie
+npm i dotenv express cors argon2 zod cookie cookie-parser jsonwebtoken
 ```
 
 ### Install dev dependencies
 
 ```bash npm2yarn copy
-npm i --dev @prisma/client prisma @types/passport @types/express-session @types/express @types/cookie
+npm i --dev @prisma/client prisma @types/express @types/cookie @types/cors @types/cookie-parser @types/jsonwebtoken
 ```
 
 ### Setup your Prisma schema
@@ -79,11 +80,8 @@ model User {
 ```ts showLineNumbers filename="server.ts" copy
 import { config } from "dotenv";
 import express, { Request, Response } from "express";
-import session from "express-session";
 import cors from "cors";
-import { createClient } from "redis";
-import passport from "passport";
-import RedisStore from "connect-redis";
+import cookieParser from "cookie-parser";
 
 import { authRouter } from "@/features/auth/routes";
 ```
@@ -91,6 +89,12 @@ import { authRouter } from "@/features/auth/routes";
 ### Setup and load env variables
 
 ```bash showLineNumbers filename=".env" copy
+# JWT
+JWT_SECRET="" # Run `openssl rand -base64 32` in your CLI to generate a secret
+JWT_REFRESH_SECRET="" # Run `openssl rand -base64 32` in your CLI to generate a secret
+JWT_EXPIRES_IN=30m
+JWT_REFRESH_EXPIRES_IN=30d
+
 # Server
 NODE_ENV="development"
 HOST="localhost"
@@ -98,47 +102,21 @@ SCHEME="http"
 PORT="4000"
 CORS_ORIGIN="http://localhost:3000,http://localhost:4000"
 
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# API
-SESSION_COOKIE_NAME="RollYourOwnAuth"
-SESSION_SECRET="21fcYrNnK1OyR+UCTSfYwYMLAAcrtTOvrmj6QEouBAA="
-SESSION_MAX_AGE=86400000
+# Cookie
+ACCESS_TOKEN_COOKIE_NAME=RollYourOwnAuth
+REFRESH_TOKEN_COOKIE_NAME=RollYourOwnAuth_REFRESH
+REFRESH_TOKEN_COOKIE_MAX_AGE=1800000
+ACCESS_TOKEN_COOKIE_MAX_AGE=2592000000
 ```
  
 ```ts showLineNumbers filename="server.ts" copy
 config();
 ```
 
-### Setup Redis
-
-```ts showLineNumbers filename="server.ts" copy
-const app = express();
-app.set("trust proxy", 1);
-
-const redisClient = createClient();
-redisClient.connect().catch(console.error);
-const redisStore = new RedisStore({
-  client: redisClient,
-  prefix: "auth:",
-  disableTouch: true,
-});
-
-redisClient.on("error", (error: Error) => {
-  logger.error(error.message);
-});
-redisClient.on("connect", function () {
-  console.log(
-    `Redis connected at ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
-  );
-});
-```
-
 ### App uses()
 
 ```ts showLineNumbers filename="server.ts" copy
+const app = express();
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -153,23 +131,7 @@ app.use(
     optionsSuccessStatus: 200,
   })
 );
-app.use(
-  session({
-    name: process.env.SESSION_COOKIE_NAME,
-    secret: String(process.env.SESSION_SECRET),
-    store: redisStore,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      maxAge: Number(process.env.SESSION_MAX_AGE),
-      sameSite: "lax",
-    },
-    resave: false,
-    saveUninitialized: false,
-  })
-);
-app.use(passport.initialize());
-app.use(passport.session());
+app.use(cookieParser());
 ```
 
 ### Add Auth router
@@ -201,13 +163,24 @@ import { logoutHandler } from "@/features/auth/controllers/logoutHandler";
 import { meHandler } from "@/features/auth/controllers/meHandler";
 import { signupHandler } from "@/features/auth/controllers/signupHandler";
 import { loginHandler } from "@/features/auth/controllers/loginHandler";
+import { refreshHandler } from "@/features/auth/controllers/refreshHandler";
 
 const authRouter = express.Router();
 
 authRouter.post("/signup", validate(signupSchema), signupHandler);
 authRouter.post("/login", validate(loginSchema), loginHandler);
-authRouter.get("/logout", logoutHandler);
-authRouter.get("/me", meHandler);
+authRouter.post(
+  "/refresh",
+  refreshHandler
+);
+authRouter.get(
+  "/logout",
+  logoutHandler
+);
+authRouter.get(
+  "/me",
+  meHandler
+);
 
 export { authRouter };
 ```
@@ -217,9 +190,9 @@ export { authRouter };
 ```ts showLineNumbers filename="/controllers/loginHandler.ts" copy
 import { Request, Response } from "express";
 import argon2 from "argon2";
+import jwt from "jsonwebtoken";
 
 import { prisma } from "@/config";
-import { CustomSessionData } from "@/features/auth/types";
 
 export const loginHandler = async (req: Request, res: Response) => {
   const credentials = req.body;
@@ -246,15 +219,31 @@ export const loginHandler = async (req: Request, res: Response) => {
 
   await argon2.verify(user.password, credentials.password).catch();
 
-  (req.session as CustomSessionData).userId = String(user.id);
+  const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
 
-  const userData = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-  };
+  const refresh_token = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
 
-  return res.json(userData).status(200);
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  return res.json({ access_token }).status(200);
 };
 ```
 
@@ -262,9 +251,9 @@ export const loginHandler = async (req: Request, res: Response) => {
 ```ts showLineNumbers filename="/controllers/signupHandler.ts" copy
 import { Request, Response } from "express";
 import argon2 from "argon2";
+import jwt from "jsonwebtoken";
 
 import { prisma } from "@/config";
-import { CustomSessionData } from "@/features/auth/types";
 
 export const signupHandler = async (req: Request, res: Response) => {
   const userDetails = req.body;
@@ -277,45 +266,52 @@ export const signupHandler = async (req: Request, res: Response) => {
       email: userDetails.email,
       password: hashedPasword,
     },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      posts: true,
-    },
   });
 
-  (req.session as CustomSessionData).userId = String(user.id);
+  const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
 
-  return res.json(user).status(200);
+  const refresh_token = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  return res.json({ access_token }).status(200);
 };
 ```
 
 ### /me controller
 ```ts showLineNumbers filename="/controllers/meHandler.ts" copy
 import { Request, Response } from "express";
-
-import { CustomSessionData } from "@/features/auth/types";
+import jwt from 'jsonwebtoken'
 import { prisma } from "@/config";
 
 export const meHandler = async (req: Request, res: Response) => {
-  const session: CustomSessionData = req.session;
-  const sessionId: string | undefined = session.userId;
-  const userId = (req?.user as any)?.id;
+  const { RollYourOwnAuth } = req.cookies;
 
-  if (!sessionId && !userId) {
-    return res.json({ message: "User already logged out." }).status(400);
-  }
+  if (!RollYourOwnAuth) return res.status(401).json({ message: "Unauthorized!" });
 
-  const remainingTime = session.cookie.maxAge || 0;
-
-  if (remainingTime <= 0) {
-    return res.json({ message: "Session has expired." }).status(401);
-  }
+  const decoded: any = jwt.verify(RollYourOwnAuth, process.env.JWT_SECRET!)
 
   const user = await prisma.user.findUnique({
     where: {
-      id: sessionId || userId,
+      id: decoded.id,
     },
     select: {
       id: true,
@@ -332,34 +328,59 @@ export const meHandler = async (req: Request, res: Response) => {
 ```ts showLineNumbers filename="/controllers/logoutHandler.ts" copy
 import { Request, Response } from "express";
 
-export const logoutHandler = async (req: Request, res: Response) => {
-  req.session.destroy((err) => {
-    if (process.env.SESSION_COOKIE_NAME) {
-      res.clearCookie(process.env.SESSION_COOKIE_NAME);
-    }
-    if (err) {
-      res
-        .json({
-          message: err.message,
-        })
-        .status(400);
-    }
+export const logoutHandler = async (_req: Request, res: Response) => {
+  res
+    .clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME!)
+    .clearCookie(process.env.ACCESS_TOKEN_COOKIE_NAME!)
+    .status(200)
+    .end();
+};
+```
 
-    res
-      .json({
-        message: "User logged out succcessfully",
-      })
-      .status(200);
+### /refresh controller
+```ts showLineNumbers filename="/controllers/logoutHandler.ts" copy
+import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+
+export const refreshHandler = (req: Request, res: Response) => {
+  const { RollYourOwnAuth_REFRESH } = req.cookies;
+
+  if (!RollYourOwnAuth_REFRESH) {
+    return res.status(400).json({ message: "Refresh token is expired!" });
+  }
+
+  const decoded: any = jwt.verify(RollYourOwnAuth_REFRESH, process.env.JWT_REFRESH_SECRET!)
+
+  const access_token = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
   });
+
+  const refresh_token = jwt.sign(
+    { id: decoded.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  return res.json({ access_token }).status(200);
 };
 ```
 
 </Steps>
 
-<Callout type="warning" emoji="⚠️">
-  You have to install and start Redis locally
-</Callout>
-
 ## Official example
 
-- [rest-express-prisma-sessions-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-express-prisma-sessions-sqlite)
+- [rest-express-prisma-jwt-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-express-prisma-jwt-sqlite)

@@ -10,11 +10,26 @@ The issue is that it's really hard to find such criterias in a third party servi
 
 *You can use this in order to build your own auth system.*
 
-### Get started by choosing the approach you prefer
+### Quick start via the CLI
+
+```bash copy
+npx ryo-auth@latest init
+```
+
+```bash
+Starting the ryo-auth initialization process...
+? Pick the auth approach you would like: Sessions
+? Server side, pick the server side framework you are using: Express.js
+? Pick the Database you would like to use: Sqlite
+? Pick the ORM you would to use: Prisma
+? Now client side, pick the client side framework you are using: Next.js
+```
+
+### Or get started by choosing the approach you prefer
 
 <Cards>
   <Card title="Sessions" href="/sessions" />
-  <Card title="JWT (coming soon)" href="/jwt" />
+  <Card title="JWT" href="/jwt" />
   <Card title="SSO (coming soon)" href="/sso" />
   <Card title="Passwordless (coming soon)" href="/passwordless" />
   <Card title="2FA (coming soon)" href="/2fa" />

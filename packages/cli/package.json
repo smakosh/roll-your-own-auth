@@ -1,5 +1,5 @@
 {
-  "name": "roll-your-own-auth",
+  "name": "ryo-auth",
   "version": "0.0.1",
   "description": "Roll your own auth to your apps.",
   "publishConfig": {
@@ -7,8 +7,8 @@
   },
   "license": "MIT",
   "author": {
-    "name": "roll-your-own-auth",
-    "url": "https://x.com/smakosh"
+    "name": "Smakosh",
+    "url": "https://smakosh.com"
   },
   "repository": {
     "type": "git",
@@ -27,7 +27,31 @@
   "type": "module",
   "exports": "./dist/index.js",
   "bin": "./dist/index.js",
-  "scripts": {},
-  "dependencies": {},
-  "devDependencies": {}
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
+    "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
+    "release": "changeset version",
+    "pub:beta": "pnpm build && pnpm publish --no-git-checks --access public --tag beta",
+    "pub:next": "pnpm build && pnpm publish --no-git-checks --access public --tag next",
+    "pub:release": "pnpm build && pnpm publish --access public"
+  },
+  "dependencies": {
+    "@babel/core": "^7.22.1",
+    "@babel/parser": "^7.22.6",
+    "@babel/plugin-transform-typescript": "^7.22.5",
+    "chalk": "5.2.0",
+    "commander": "^10.0.1",
+    "inquirer": "^9.2.18",
+    "tsconfig-paths": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/babel__core": "^7.20.1",
+    "@types/inquirer": "^9.0.7",
+    "tsup": "^6.6.3",
+    "typescript": "^4.9.3"
+  }
 }
