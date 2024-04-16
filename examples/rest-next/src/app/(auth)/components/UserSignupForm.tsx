@@ -65,7 +65,7 @@ export function UserSignupForm({ className, ...props }: UserSignupFormProps) {
 
     const user = await res.json();
 
-    if (user.id) {
+    if (user.id || user.access_token) {
       router.push("/dashboard");
     }
 

@@ -9,12 +9,11 @@ const Logout = () => {
   const logout = async () => {
     const res = await fetch(`${APP_URL}/api/auth/logout`);
 
-    const data = await res.json();
-
-    if (data.message === "User logged out succcessfully") {
+    if (res.status === 200) {
       router.push("/login");
     }
   };
+
   return (
     <Button type="button" onClick={logout}>
       Logout

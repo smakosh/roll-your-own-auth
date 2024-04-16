@@ -1,30 +1,38 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { CustomExpressUser } from "@/features/auth/types";
 
 export const refreshHandler = (req: Request, res: Response) => {
-    const jwtUser = req.user as CustomExpressUser;
+  const { RollYourOwnAuth_REFRESH } = req.cookies;
 
-    if (!jwtUser)
-        return res.status(400).json({ message: "Refresh token is expired!" });
+  if (!RollYourOwnAuth_REFRESH) {
+    return res.status(400).json({ message: "Refresh token is expired!" });
+  }
 
-    const access_token = jwt.sign({ id: jwtUser.id }, process.env.JWT_SECRET!, {
-        expiresIn: process.env.JWT_EXPIRESIN,
-    });
-    const refresh_token = jwt.sign(
-        { id: jwtUser.id },
-        process.env.JWT_REFRESH_SECRET!,
-        { expiresIn: process.env.JWT_REFRESH_EXPIRESIN }
-    );
+  const decoded: any = jwt.verify(RollYourOwnAuth_REFRESH, process.env.JWT_REFRESH_SECRET!)
 
-    res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
-        expires: new Date(
-            Date.now() + Number(process.env.REFRESH_TOKEN_COOKIE_EXPIRES)
-        ),
-        secure: true,
-        httpOnly: true,
-        sameSite: "lax",
-    });
+  const access_token = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
 
-    return res.json({ access_token }).status(200);
+  const refresh_token = jwt.sign(
+    { id: decoded.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  return res.json({ access_token }).status(200);
 };

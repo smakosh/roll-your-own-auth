@@ -8,27 +8,23 @@ import { logoutHandler } from "@/features/auth/controllers/logoutHandler";
 import { meHandler } from "@/features/auth/controllers/meHandler";
 import { signupHandler } from "@/features/auth/controllers/signupHandler";
 import { loginHandler } from "@/features/auth/controllers/loginHandler";
-import passport from "passport";
-import { refreshHandler } from "../controllers/refreshHandler";
+import { refreshHandler } from "@/features/auth/controllers/refreshHandler";
 
 const authRouter = express.Router();
 
 authRouter.post("/signup", validate(signupSchema), signupHandler);
 authRouter.post("/login", validate(loginSchema), loginHandler);
 authRouter.post(
-    "/refresh",
-    passport.authenticate("jwt-refresh", { session: false }),
-    refreshHandler
+  "/refresh",
+  refreshHandler
 );
 authRouter.get(
-    "/logout",
-    passport.authenticate("jwt", { session: false }),
-    logoutHandler
+  "/logout",
+  logoutHandler
 );
 authRouter.get(
-    "/me",
-    passport.authenticate("jwt", { session: false }),
-    meHandler
+  "/me",
+  meHandler
 );
 
 export { authRouter };

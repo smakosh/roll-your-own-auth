@@ -1,11 +1,21 @@
 {
   "name": "roll-your-own-auth",
-  "private": true,
+  "private": false,
+  "workspaces": [
+    "apps/*",
+    "examples/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "build:cli": "turbo --filter=ryo-auth build",
+    "dev": "turbo dev --parallel",
+    "cli:dev": "turbo --filter=ryo-auth dev",
+    "cli:start": "pnpm --filter=ryo-auth start:dev",
+    "docs:dev": "pnpm --filter=docs dev",
     "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "release": "changeset version"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
