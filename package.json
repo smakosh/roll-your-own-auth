@@ -1,6 +1,12 @@
 {
   "name": "roll-your-own-auth",
-  "private": false,
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "author": {
+    "name": "smakosh",
+    "url": "https://smakosh.com"
+  },
   "workspaces": [
     "apps/*",
     "examples/*",
