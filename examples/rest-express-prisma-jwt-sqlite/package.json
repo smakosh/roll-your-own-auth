@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "./src/server.js",
+  "private": true,
   "scripts": {
     "dev": "prisma generate && ts-node ./src/server.ts",
     "prisma:generate": "prisma generate",
