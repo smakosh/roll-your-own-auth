@@ -26,7 +26,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://lcomeback.com"><img src="https://avatars.githubusercontent.com/u/73344068?v=4?s=100" width="100px;" alt="Pipas"/><br /><sub><b>Pipas</b></sub></a><br /><a href="https://github.com/smakosh/roll-your-own-auth/commits?author=Piipas" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://pipas.dev"><img src="https://avatars.githubusercontent.com/u/73344068?v=4?s=100" width="100px;" alt="Pipas"/><br /><sub><b>Pipas</b></sub></a><br /><a href="https://github.com/smakosh/roll-your-own-auth/commits?author=Piipas" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
