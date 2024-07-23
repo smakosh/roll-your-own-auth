@@ -46,9 +46,14 @@ function getServerExamplePath(answers: any) {
 }
 
 function getClientExamplePath(answers: any) {
-    if (answers.clientFramework === 'Next.js') {
-        return 'examples/rest-next';
+    if(answers.authMethods.includes("Sessions") && answers.clientFramework === 'Next.js') {
+        return 'examples/rest-next-sessions';
     }
+
+    if(answers.authMethods.includes("JWT") && answers.clientFramework === 'Next.js') {
+        return 'examples/rest-next-jwt';
+    }
+
     return null; // Add more paths for different client frameworks as needed
 }
 
