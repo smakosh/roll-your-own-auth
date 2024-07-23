@@ -1,0 +1,601 @@
+import { Callout, FileTree, Steps } from 'nextra/components'
+
+## Use the CLI (not yet supported)
+
+```bash copy
+npm ryo-auth@latest add jwt-next
+```
+
+## Manual Installation (WIP, to be improved)
+
+<Steps>
+### Start a new Next.js project with shadcn/ui
+
+<Callout type="warning" emoji="⚠️">
+  Make sure to go through the installer, choose TypeScript, App Router and src folder.
+</Callout>
+ 
+```bash npm2yarn copy
+npm create-next-app@latest
+```
+
+### Install additional dependencies for UI
+
+```bash npm2yarn copy
+npm i more libraries
+```
+
+### Configure Next Config
+
+```ts showLineNumbers filename="./next.config.ts" copy
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${process.env.NEXT_PUBLIC_AUTH_API}/:path*`,
+      },
+    ];
+  },
+};
+
+module.exports = nextConfig;
+```
+
+### Create the folder and file structure
+
+<FileTree>
+  <FileTree.File name="next.config.js" />
+  <FileTree.Folder name="src" defaultOpen>
+    <FileTree.Folder name="lib">
+      <FileTree.File name="session.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="app" defaultOpen>
+      <FileTree.Folder name="(auth)" defaultOpen>
+        <FileTree.Folder name="components" defaultOpen>
+          <FileTree.File name="UserAuthForm.tsx" />
+          <FileTree.File name="UserSignupForm.tsx" />
+        </FileTree.Folder>
+        <FileTree.Folder name="login">
+          <FileTree.File name="page.tsx" />
+        </FileTree.Folder>
+        <FileTree.Folder name="signup">
+          <FileTree.File name="page.tsx" />
+        </FileTree.Folder>
+      </FileTree.Folder>
+      <FileTree.Folder name="dashboard">
+        <FileTree.Folder name="components" defaultOpen>
+          <FileTree.File name="Links.tsx" />
+          <FileTree.File name="Logout.tsx" />
+        </FileTree.Folder>
+        <FileTree.File name="page.tsx" />
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="middleware.ts" />
+  </FileTree.Folder>
+</FileTree>
+ 
+### Middleware
+
+```ts showLineNumbers filename="/src/middleware.ts" copy
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+const AUTH_ROUTES = ["/login", "/signup"];
+
+export async function middleware(request: NextRequest) {
+  const cookie = request.cookies.get("RollYourOwnAuth")?.value;
+
+  const isAuthPage = Boolean(AUTH_ROUTES.includes(request.nextUrl.pathname));
+
+  if (isAuthPage) {
+    if (cookie) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    return null;
+  }
+
+  if (!cookie) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+}
+
+// See "Matching Paths" below to learn more
+export const config = {
+  matcher: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+};
+```
+
+### Setup env variables
+
+```bash showLineNumbers filename=".env.local" copy
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_AUTH_API=http://localhost:4000
+```
+
+### /login route
+
+The `/login` page.
+
+```tsx showLineNumbers filename="/src/app/(auth)/login/page.tsx" copy
+import { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/ui/components/button";
+import { UserAuthForm } from "../components/UserAuthForm";
+import Logo from "@/ui/icons/Logo";
+
+export const metadata: Metadata = {
+  title: "Login",
+  description: "Authentication forms built using the components.",
+};
+
+export default function LoginPage() {
+  return (
+    <>
+      <div className="container relative h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+        <Link
+          href="/signup"
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "absolute right-4 top-4 md:right-8 md:top-8"
+          )}
+        >
+          Signup
+        </Link>
+        <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
+          <div className="absolute inset-0 bg-zinc-900" />
+          <div className="relative z-20 flex items-center text-lg font-medium">
+            <Logo />
+          </div>
+          <div className="relative z-20 mt-auto">
+            <blockquote className="space-y-2">
+              <p className="text-lg">
+                &ldquo;It's time to roll your own auth&rdquo;
+              </p>
+              <footer className="text-sm">Smakosh</footer>
+            </blockquote>
+          </div>
+        </div>
+        <div className="lg:p-8">
+          <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+            <div className="flex flex-col space-y-2 text-center">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Welcome back
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Login into your account
+              </p>
+            </div>
+            <UserAuthForm />
+            <p className="px-8 text-center text-sm text-muted-foreground">
+              By clicking continue, you agree to our{" "}
+              <Link
+                href="/terms"
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/privacy"
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+```
+
+The Login Form component
+
+```tsx showLineNumbers filename="/src/app/(auth)/components/UserAuthForm.tsx" copy
+"use client";
+
+import * as React from "react";
+
+import { cn } from "@/lib/utils";
+import * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { Button } from "@/ui/components/button";
+import { Input } from "@/ui/components/input";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/ui/components/form";
+import Spinner from "@/ui/icons/Spinner";
+import { useRouter } from "next/navigation";
+import { APP_URL } from "@/lib/env";
+
+interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+const formSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6, {
+    message: "Password must be at least 6 characters",
+  }),
+});
+
+export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    mode: "onTouched",
+  });
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+
+    const res = await fetch(`${APP_URL}/api/auth/login`, {
+      method: "POST",
+      body: JSON.stringify(values),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const user = await res.json();
+
+    if (user.id || user.access_token) {
+      router.push("/dashboard");
+    }
+
+    setIsLoading(false);
+  }
+
+  return (
+    <div className={cn("grid gap-6", className)} {...props}>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem className="mb-3">
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="john@doe.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem className="mb-3">
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button type="submit" disabled={isLoading} className="mb-6">
+            {isLoading && <Spinner className="mr-2 h-4 w-4 animate-spin" />}
+            Signin
+          </Button>
+        </form>
+      </Form>
+    </div>
+  );
+}
+```
+
+### /signup route
+
+The `/signup` page.
+
+```tsx showLineNumbers filename="/src/app/(auth)/signup/page.tsx" copy
+import { Metadata } from "next";
+import Link from "next/link";
+
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/ui/components/button";
+import Logo from "@/ui/icons/Logo";
+import { UserSignupForm } from "../components/UserSignupForm";
+
+export const metadata: Metadata = {
+  title: "Signup",
+  description: "Authentication forms built using the components.",
+};
+
+export default function SignupPage() {
+  return (
+    <>
+      <div className="container relative h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+        <Link
+          href="/login"
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "absolute right-4 top-4 md:right-8 md:top-8"
+          )}
+        >
+          Login
+        </Link>
+        <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
+          <div className="absolute inset-0 bg-zinc-900" />
+          <div className="relative z-20 flex items-center text-lg font-medium">
+            <Logo />
+          </div>
+          <div className="relative z-20 mt-auto">
+            <blockquote className="space-y-2">
+              <p className="text-lg">
+                &ldquo;It's time to roll your own auth&rdquo;
+              </p>
+              <footer className="text-sm">Smakosh</footer>
+            </blockquote>
+          </div>
+        </div>
+        <div className="lg:p-8">
+          <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+            <div className="flex flex-col space-y-2 text-center">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Create an account
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Enter your email below to create your account
+              </p>
+            </div>
+            <UserSignupForm />
+            <p className="px-8 text-center text-sm text-muted-foreground">
+              By clicking continue, you agree to our{" "}
+              <Link
+                href="/terms"
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/privacy"
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+```
+
+The Signup Form component
+
+```tsx showLineNumbers filename="/src/app/(auth)/components/UserSignupForm.tsx" copy
+"use client";
+
+import * as React from "react";
+
+import { cn } from "@/lib/utils";
+import * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { Button } from "@/ui/components/button";
+import { Input } from "@/ui/components/input";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/ui/components/form";
+import Spinner from "@/ui/icons/Spinner";
+import { useRouter } from "next/navigation";
+import { APP_URL } from "@/lib/env";
+
+interface UserSignupFormProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+const formSchema = z
+  .object({
+    name: z
+      .string()
+      .min(2, {
+        message: "Name must be at least 2 characters.",
+      })
+      .max(120),
+    email: z.string().email(),
+    password: z.string().min(6, {
+      message: "Password must be at least 6 characters",
+    }),
+    confirmPassword: z.string().min(6, {
+      message: "Password must be at least 6 characters",
+    }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords don't match",
+  });
+
+export function UserSignupForm({ className, ...props }: UserSignupFormProps) {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    mode: "onTouched",
+  });
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+
+    const res = await fetch(`${APP_URL}/api/auth/signup`, {
+      method: "POST",
+      body: JSON.stringify(values),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const user = await res.json();
+
+    if (user.id || user.access_token) {
+      router.push("/dashboard");
+    }
+
+    setIsLoading(false);
+  }
+
+  return (
+    <div className={cn("grid gap-6", className)} {...props}>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem className="mb-3">
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input type="text" placeholder="John Doe" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem className="mb-3">
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="john@doe.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem className="mb-3">
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem className="mb-6">
+                <FormLabel>Confirm password</FormLabel>
+                <FormControl>
+                  <Input type="password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button type="submit" disabled={isLoading} className="mb-6">
+            {isLoading && <Spinner className="mr-2 h-4 w-4 animate-spin" />}
+            Sign up
+          </Button>
+        </form>
+      </Form>
+    </div>
+  );
+}
+```
+
+### Dashboard protected route
+
+The `/dashboard` page.
+
+```tsx showLineNumbers filename="/src/app/dashboard/page.tsx" copy
+import { getCurrentUser } from "@/lib/session";
+import { redirect } from "next/navigation";
+import Logout from "./components/Logout";
+
+export const dynamic = "force-dynamic";
+
+const DashboardPage = async () => {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  return (
+    <div>
+      Welcome back: <pre>{JSON.stringify(user, null, 2)}</pre>
+      <Logout />
+    </div>
+  );
+};
+
+export default DashboardPage;
+```
+
+### Logout component
+
+```tsx showLineNumbers filename="/src/app/dashboard/components/Logout.tsx" copy
+"use client";
+
+import { APP_URL } from "@/lib/env";
+import { Button } from "@/ui/components/button";
+import { useRouter } from "next/navigation";
+
+const Logout = () => {
+  const router = useRouter();
+  const logout = async () => {
+    const res = await fetch(`${APP_URL}/api/auth/logout`);
+
+    if (res.status === 200) {
+      router.push("/login");
+    }
+  };
+
+  return (
+    <Button type="button" onClick={logout}>
+      Logout
+    </Button>
+  );
+};
+
+export default Logout;
+```
+
+</Steps>
+
+<Callout type="success" emoji="🚀">
+  and that's a wrap! Congratulations on rolling your own auth!
+</Callout>
+
+## Official example
+
+- [rest-next-jwt](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-next-jwt)

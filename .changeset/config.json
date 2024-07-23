@@ -7,5 +7,5 @@
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["docs", "rest-express-prisma-jwt-sqlite", "rest-express-prisma-sessions-sqlite", "rest-next"]
+  "ignore": ["docs", "rest-express-prisma-jwt-sqlite", "rest-express-prisma-sessions-sqlite", "rest-next-sessions", "rest-next-jwt"]
 }

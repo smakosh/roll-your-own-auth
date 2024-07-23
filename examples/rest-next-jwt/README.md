@@ -2,9 +2,9 @@
 
 Roll Your Own Auth is a TypeScript project that provides a flexible authentication system for your web applications.
 
-This boilerplate is one of incoming boilerplates, this one leverages Next.js making requests to a REST API that implements authentication using session-based storage in Redis, the user id is then securely stored in HTTP-only cookies.
+This boilerplate is one of incoming boilerplates, this one leverages Next.js making requests to a REST API that implements authentication using JWT based approach, both the refresh/access tokens are then securely stored in HTTP-only cookies.
 
-This specific project requires the following [REST API](https://github.com/smakosh/roll-your-own-auth/examples/rest-next)
+This specific project requires the following [REST API](https://github.com/smakosh/roll-your-own-auth/examples/rest-express-prisma-jwt-sqlite)
 
 ## Getting Started
 
