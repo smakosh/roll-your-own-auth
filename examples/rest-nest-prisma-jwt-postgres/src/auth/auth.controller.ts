@@ -87,6 +87,15 @@ export class AuthController {
     return { access_token };
   }
 
+  @Get('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res
+      .clearCookie(this.configService.get<string>('ACCESS_TOKEN_COOKIE_NAME'))
+      .clearCookie(this.configService.get<string>('REFRESH_TOKEN_COOKIE_NAME'))
+      .end();
+  }
+
   @UseGuards(AuthGuard)
   @Get('profile')
   @HttpCode(HttpStatus.OK)
