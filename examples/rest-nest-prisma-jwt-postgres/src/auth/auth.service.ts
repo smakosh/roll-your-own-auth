@@ -5,6 +5,7 @@ import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
+import { Request } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +38,22 @@ export class AuthService {
     });
 
     const refresh_token = jwt.sign({ id: user.id }, this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'), {
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
+    });
+
+    return { access_token, refresh_token };
+  }
+
+  async refresh(old_refresh_token: string) {
+    const decoded = jwt.verify(
+      old_refresh_token,
+      this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+    ) as Request['user'];
+    const access_token = jwt.sign({ id: decoded.id }, this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'), {
+      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN'),
+    });
+
+    const refresh_token = jwt.sign({ id: decoded.id }, this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'), {
       expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
     });
 

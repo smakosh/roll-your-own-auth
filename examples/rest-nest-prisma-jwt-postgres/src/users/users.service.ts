@@ -26,6 +26,16 @@ export class UsersService {
     }
   }
 
+  async findUserById(id: string): Promise<User> {
+    const user = await prisma.user.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    return user;
+  }
+
   async findUserByEmail(email: string): Promise<User> {
     const user = await prisma.user.findUnique({
       where: {
