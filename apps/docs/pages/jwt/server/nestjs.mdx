@@ -1,0 +1,495 @@
+import { FileTree, Steps } from "nextra/components";
+
+## Use the CLI (not yet supported)
+
+```bash copy
+npx ryo-auth@latest add jwt-nestjs-prisma
+```
+
+## Manual Installation
+
+<FileTree>
+    <FileTree.Folder name="src" defaultOpen>
+        <FileTree.Folder name="auth">
+            <FileTree.Folder name="dto" defaultOpen>
+                <FileTree.File name="login.dto.ts" />
+            </FileTree.Folder>
+            <FileTree.File name="auth.controller.ts" />
+            <FileTree.File name="auth.guard.ts" />
+            <FileTree.File name="auth.module.ts" />
+            <FileTree.File name="auth.service.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="config">
+            <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="types">
+            <FileTree.File name="global.d.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="users">
+            <FileTree.Folder name="dto" defaultOpen>
+                <FileTree.File name="create-user.dto.ts" />
+            </FileTree.Folder>
+            <FileTree.File name="users.module.ts" />
+            <FileTree.File name="users.service.ts" />
+        </FileTree.Folder>
+        <FileTree.File name="app.module.ts" />
+        <FileTree.File name="main.ts" />
+    </FileTree.Folder>
+</FileTree>
+
+<Steps>
+### Install dependencies
+ 
+```bash npm2yarn copy
+npm i @nestjs/config @prisma/client argon2 class-transformer class-validator cookie-parser
+```
+
+### Install dev dependencies
+
+```bash npm2yarn copy
+npm i --dev prisma @types/cookie-parser @types/jsonwebtoken
+```
+
+### Setup your Prisma schema
+
+```prisma showLineNumbers filename="prisma/schema.prisma" copy
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+### App bootstrap
+
+```ts showLineNumbers filename="main.ts" copy
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { ValidationPipe } from "@nestjs/common";
+import * as cookieParser from "cookie-parser";
+
+async function bootstrap() {
+    const app = await NestFactory.create(AppModule);
+    app.useGlobalPipes(new ValidationPipe());
+    app.use(cookieParser());
+    await app.listen(3000);
+}
+bootstrap();
+```
+
+### Setup env variables
+
+```bash showLineNumbers filename=".env" copy
+DATABASE_URL="postgresql://username:password@localhost:5432/RollYourOwnAuth"
+
+NODE_ENV="development"
+
+JWT_ACCESS_TOKEN_SECRET="" # Run `openssl rand -base64 32` in your CLI to generate a secret
+JWT_REFRESH_TOKEN_SECRET="" # Run `openssl rand -base64 32` in your CLI to generate a secret
+JWT_ACCESS_EXPIRES_IN=30m
+JWT_REFRESH_EXPIRES_IN=30d
+
+ACCESS_TOKEN_COOKIE_MAX_AGE=1800000
+REFRESH_TOKEN_COOKIE_NAME=__refreshToken__
+REFRESH_TOKEN_COOKIE_MAX_AGE=2592000000
+ACCESS_TOKEN_COOKIE_NAME=__accessToken__
+```
+
+### Prisma config
+
+```ts showLineNumbers filename="config/index.ts" copy
+import { PrismaClient } from "@prisma/client";
+
+export const prisma = new PrismaClient();
+```
+
+### App module
+
+```ts showLineNumbers filename="app.module.ts" copy
+import { Module } from "@nestjs/common";
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
+import { AuthModule } from "./auth/auth.module";
+import { UsersModule } from "./users/users.module";
+import { ConfigModule } from "@nestjs/config";
+
+@Module({
+    imports: [
+        AuthModule,
+        UsersModule,
+        ConfigModule.forRoot({
+            isGlobal: true,
+        }),
+    ],
+    controllers: [],
+    providers: [],
+})
+export class AppModule {}
+```
+
+### Create user dto
+
+```ts showLineNumbers filename="users/dto/create.user.dto.ts" copy
+import { IsString, IsEmail, MinLength, ValidateIf, IsIn, IsDefined } from "class-validator";
+
+export class CreateUserDto {
+    @IsString({ message: "Full name is required" })
+    name: string;
+
+    @IsEmail({}, { message: "Not a valid email" })
+    email: string;
+
+    @IsString({ message: "Password is required" })
+    @MinLength(6, { message: "Password must be at least 6 characters long" })
+    password: string;
+
+    @IsString()
+    @IsDefined()
+    @IsIn([Math.random()], {
+        message: "Passwords do not match",
+    })
+    @ValidateIf((o) => o.password !== o.confirmPassword)
+    confirmPassword: string;
+}
+```
+
+### Users module
+
+```ts showLineNumbers filename="users/users.module.ts" copy
+import { Module } from "@nestjs/common";
+import { UsersService } from "./users.service";
+
+@Module({
+    providers: [UsersService],
+})
+export class UsersModule {}
+```
+
+### Users service
+
+```ts showLineNumbers filename="users/users.service.ts" copy
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import { prisma } from "src/config";
+import { CreateUserDto } from "./dto/create-user.dto";
+import * as argon2 from "argon2";
+import { Prisma, User } from "@prisma/client";
+
+@Injectable()
+export class UsersService {
+    async createUser(userDetails: CreateUserDto): Promise<User> {
+        const hashedPasword = await argon2.hash(userDetails.password);
+
+        try {
+            const user = await prisma.user.create({
+                data: {
+                    name: userDetails.name,
+                    email: userDetails.email,
+                    password: hashedPasword,
+                },
+            });
+
+            return user;
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+                throw new HttpException("Email already exists", HttpStatus.CONFLICT);
+            }
+        }
+    }
+
+    async findUserById(id: string): Promise<User> {
+        const user = await prisma.user.findUnique({
+            where: {
+                id,
+            },
+        });
+
+        return user;
+    }
+
+    async findUserByEmail(email: string): Promise<User> {
+        const user = await prisma.user.findUnique({
+            where: {
+                email,
+            },
+        });
+
+        if (!user) {
+            throw new HttpException("User not found", HttpStatus.NOT_FOUND);
+        }
+        return user;
+    }
+}
+```
+
+### Extend express request type to include user info
+
+```ts showLineNumbers filename="types/global.d.ts" copy
+import { Request as ExpressRequest } from "express";
+declare module "express" {
+    interface Request extends ExpressRequest {
+        user: {
+            id: string;
+        };
+    }
+}
+```
+
+### Auth module
+
+```ts showLineNumbers filename="auth/auth.module.ts" copy
+import { Module } from "@nestjs/common";
+import { AuthController } from "./auth.controller";
+import { AuthService } from "./auth.service";
+import { UsersService } from "src/users/users.service";
+
+@Module({
+    controllers: [AuthController],
+    providers: [AuthService, UsersService],
+})
+export class AuthModule {}
+```
+
+### Auth guard
+
+```ts showLineNumbers filename="auth/auth.guard.ts" copy
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Request } from "express";
+import * as jwt from "jsonwebtoken";
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+    constructor(private configService: ConfigService) {}
+
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+        const request: Request = context.switchToHttp().getRequest();
+        const refreshTokenCookieName = this.configService.get<string>("ACCESS_TOKEN_COOKIE_NAME");
+
+        const token: string = request.cookies[refreshTokenCookieName];
+        try {
+            const deodedPayload = jwt.verify(
+                token,
+                this.configService.get<string>("JWT_ACCESS_TOKEN_SECRET")
+            ) as Request["user"];
+
+            // 💡 We're assigning the payload to the request object here
+            // so that we can access it in our route handlers
+            // 💡 and to make it typesafe we extended express request type in 'src/types/global.d.ts"
+            request.user = deodedPayload;
+        } catch {
+            throw new UnauthorizedException();
+        }
+        return true;
+    }
+}
+```
+
+### Login dto
+
+```ts showLineNumbers filename="auth/dto/login.dto.ts" copy
+import { IsString, IsEmail } from "class-validator";
+
+export class LoginDto {
+    @IsEmail({}, { message: "Not a valid email" })
+    email: string;
+
+    @IsString({ message: "Password is required" })
+    password: string;
+}
+```
+
+### Auth controller
+
+```ts showLineNumbers filename="auth/auth.controller.ts" copy
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { AuthService } from "./auth.service";
+import { CreateUserDto } from "src/users/dto/create-user.dto";
+import { Request, Response } from "express";
+import { LoginDto } from "./dto/login.dto";
+import { ConfigService } from "@nestjs/config";
+import { AuthGuard } from "./auth.guard";
+import { UsersService } from "src/users/users.service";
+
+@Controller("auth")
+export class AuthController {
+    constructor(
+        private readonly authService: AuthService,
+        private readonly configService: ConfigService,
+        private readonly usersService: UsersService
+    ) {}
+
+    @Post("signup")
+    @HttpCode(HttpStatus.CREATED)
+    async signup(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
+        const { access_token, refresh_token } = await this.authService.signup(createUserDto);
+
+        res.cookie(this.configService.get<string>("REFRESH_TOKEN_COOKIE_NAME"), refresh_token, {
+            secure: this.configService.get<string>("NODE_ENV") === "production",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: this.configService.get<number>("REFRESH_TOKEN_COOKIE_MAX_AGE"),
+        });
+
+        res.cookie(this.configService.get<string>("ACCESS_TOKEN_COOKIE_NAME"), access_token, {
+            secure: this.configService.get<string>("NODE_ENV") === "production",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: this.configService.get<number>("ACCESS_TOKEN_COOKIE_MAX_AGE"),
+        });
+
+        return { access_token };
+    }
+
+    @Post("login")
+    @HttpCode(HttpStatus.OK)
+    async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+        const { access_token, refresh_token } = await this.authService.login(loginDto);
+
+        res.cookie(this.configService.get<string>("REFRESH_TOKEN_COOKIE_NAME"), refresh_token, {
+            secure: this.configService.get<string>("NODE_ENV") === "production",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: this.configService.get<number>("REFRESH_TOKEN_COOKIE_MAX_AGE"),
+        });
+
+        res.cookie(this.configService.get<string>("ACCESS_TOKEN_COOKIE_NAME"), access_token, {
+            secure: this.configService.get<string>("NODE_ENV") === "production",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: this.configService.get<number>("ACCESS_TOKEN_COOKIE_MAX_AGE"),
+        });
+
+        return { access_token };
+    }
+
+    @Post("refresh")
+    @HttpCode(HttpStatus.OK)
+    async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+        const old_refresh_token: string = req.cookies[this.configService.get<string>("REFRESH_TOKEN_COOKIE_NAME")];
+
+        if (!old_refresh_token) {
+            res.status(HttpStatus.UNAUTHORIZED).json({ message: "Unauthorized!" });
+        }
+
+        const { access_token, refresh_token: new_refresh_token } = await this.authService.refresh(old_refresh_token);
+
+        res.cookie(this.configService.get<string>("REFRESH_TOKEN_COOKIE_NAME"), new_refresh_token, {
+            secure: this.configService.get<string>("NODE_ENV") === "production",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: this.configService.get<number>("REFRESH_TOKEN_COOKIE_MAX_AGE"),
+        });
+
+        res.cookie(this.configService.get<string>("ACCESS_TOKEN_COOKIE_NAME"), access_token, {
+            secure: this.configService.get<string>("NODE_ENV") === "production",
+            httpOnly: true,
+            sameSite: "lax",
+            maxAge: this.configService.get<number>("ACCESS_TOKEN_COOKIE_MAX_AGE"),
+        });
+
+        return { access_token };
+    }
+
+    @Get("logout")
+    @HttpCode(HttpStatus.OK)
+    async logout(@Res({ passthrough: true }) res: Response) {
+        res.clearCookie(this.configService.get<string>("ACCESS_TOKEN_COOKIE_NAME"))
+            .clearCookie(this.configService.get<string>("REFRESH_TOKEN_COOKIE_NAME"))
+            .end();
+    }
+
+    @UseGuards(AuthGuard)
+    @Get("profile")
+    @HttpCode(HttpStatus.OK)
+    async profile(@Req() req: Request) {
+        const { id, email, name } = await this.usersService.findUserById(req.user.id);
+
+        return { id, email, name };
+    }
+}
+```
+
+### Auth service
+
+```ts showLineNumbers filename="auth/auth.service.ts" copy
+import { Injectable } from "@nestjs/common";
+import { UsersService } from "src/users/users.service";
+import * as jwt from "jsonwebtoken";
+import * as argon2 from "argon2";
+import { ConfigService } from "@nestjs/config";
+import { CreateUserDto } from "src/users/dto/create-user.dto";
+import { LoginDto } from "./dto/login.dto";
+import { Request } from "express";
+
+@Injectable()
+export class AuthService {
+    constructor(
+        private readonly usersService: UsersService,
+        private readonly configService: ConfigService
+    ) {}
+
+    async signup(userDetails: CreateUserDto) {
+        const user = await this.usersService.createUser(userDetails);
+
+        const access_token = jwt.sign({ id: user.id }, this.configService.get<string>("JWT_ACCESS_TOKEN_SECRET"), {
+            expiresIn: this.configService.get<string>("JWT_ACCESS_EXPIRES_IN"),
+        });
+
+        const refresh_token = jwt.sign({ id: user.id }, this.configService.get<string>("JWT_REFRESH_TOKEN_SECRET"), {
+            expiresIn: this.configService.get<string>("JWT_REFRESH_EXPIRES_IN"),
+        });
+
+        return { access_token, refresh_token };
+    }
+
+    async login(credentials: LoginDto) {
+        const user = await this.usersService.findUserByEmail(credentials.email);
+
+        await argon2.verify(user.password, credentials.password).catch();
+
+        const access_token = jwt.sign({ id: user.id }, this.configService.get<string>("JWT_ACCESS_TOKEN_SECRET"), {
+            expiresIn: this.configService.get<string>("JWT_ACCESS_EXPIRES_IN"),
+        });
+
+        const refresh_token = jwt.sign({ id: user.id }, this.configService.get<string>("JWT_REFRESH_TOKEN_SECRET"), {
+            expiresIn: this.configService.get<string>("JWT_REFRESH_EXPIRES_IN"),
+        });
+
+        return { access_token, refresh_token };
+    }
+
+    async refresh(old_refresh_token: string) {
+        const decoded = jwt.verify(
+            old_refresh_token,
+            this.configService.get<string>("JWT_REFRESH_TOKEN_SECRET")
+        ) as Request["user"];
+        const access_token = jwt.sign({ id: decoded.id }, this.configService.get<string>("JWT_ACCESS_TOKEN_SECRET"), {
+            expiresIn: this.configService.get<string>("JWT_ACCESS_EXPIRES_IN"),
+        });
+
+        const refresh_token = jwt.sign({ id: decoded.id }, this.configService.get<string>("JWT_REFRESH_TOKEN_SECRET"), {
+            expiresIn: this.configService.get<string>("JWT_REFRESH_EXPIRES_IN"),
+        });
+
+        return { access_token, refresh_token };
+    }
+}
+```
+
+</Steps>
+
+## Official example
+
+-   [rest-nestjs-prisma-jwt-postgresql](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-nestjs-prisma-jwt-postgres)
