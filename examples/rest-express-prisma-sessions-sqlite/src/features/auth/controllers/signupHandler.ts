@@ -25,5 +25,5 @@ export const signupHandler = async (req: Request, res: Response) => {
 
   (req.session as CustomSessionData).userId = String(user.id);
 
-  return res.json(user).status(200);
+  return res.status(200).json(user);
 };

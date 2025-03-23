@@ -1,6 +1,6 @@
 {
   "name": "ryo-auth",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Roll your own auth to your apps.",
   "publishConfig": {
     "access": "public"

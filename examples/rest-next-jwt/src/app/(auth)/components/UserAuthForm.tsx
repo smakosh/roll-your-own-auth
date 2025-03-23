@@ -36,6 +36,10 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     mode: "onTouched",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -50,6 +54,12 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
     });
 
     const user = await res.json();
+
+    if(user?.message) {
+      form.setError("password", {
+        message: user.message
+      })
+    }
 
     if (user.id || user.access_token) {
       router.push("/dashboard");

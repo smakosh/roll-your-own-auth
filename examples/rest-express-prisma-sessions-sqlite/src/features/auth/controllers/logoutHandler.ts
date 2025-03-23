@@ -6,17 +6,11 @@ export const logoutHandler = async (req: Request, res: Response) => {
       res.clearCookie(process.env.SESSION_COOKIE_NAME);
     }
     if (err) {
-      res
-        .json({
-          message: err.message,
-        })
-        .status(400);
+      res.status(400).json({ message: err.message });
     }
 
-    res
-      .json({
-        message: "User logged out succcessfully",
-      })
-      .status(200);
+    res.status(200).json({
+      message: "User logged out succcessfully",
+    });
   });
 };

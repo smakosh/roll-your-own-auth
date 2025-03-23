@@ -1,11 +1,10 @@
-import { getCurrentUser } from "@/lib/session";
 import { redirect } from "next/navigation";
+
+import { getCurrentUserCached } from "@/lib/session";
 import Logout from "./components/Logout";
 
-export const dynamic = "force-dynamic";
-
 const DashboardPage = async () => {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserCached();
 
   if (!user) {
     redirect("/login");

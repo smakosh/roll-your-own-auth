@@ -1,0 +1,50 @@
+{
+  "name": "rest-express-drizzle-sessions-sqlite",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./src/server.js",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node ./src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Smakosh",
+    "url": "https://smakosh.com"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cookie": "^0.5.2",
+    "@types/cors": "^2.8.14",
+    "@types/express": "^4.17.17",
+    "@types/express-session": "^1.17.7",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/node": "^20.4.10",
+    "@types/passport": "^1.0.12",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "argon2": "^0.31.1",
+    "better-sqlite3": "^11.9.1",
+    "connect-redis": "^7.1.0",
+    "cookie": "^0.5.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "drizzle-kit": "^0.30.5",
+    "drizzle-orm": "^0.41.0",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "helmet": "^7.0.0",
+    "passport": "^0.6.0",
+    "redis": "^4.6.8",
+    "winston": "^3.10.0",
+    "zod": "^3.22.2"
+  }
+}
