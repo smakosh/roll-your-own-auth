@@ -30,5 +30,8 @@
   "packageManager": "pnpm@8.6.1",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@changesets/cli": "^2.28.1"
   }
 }
