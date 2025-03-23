@@ -14,4 +14,5 @@ TBD
 
 ## Todo
 
-- [ ] Handle server side errors
+- [x] Handle server side errors
+- [ ] Write tests

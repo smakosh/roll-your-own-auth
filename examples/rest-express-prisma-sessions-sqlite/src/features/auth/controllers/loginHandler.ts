@@ -20,14 +20,16 @@ export const loginHandler = async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    return res
-      .json({
-        message: "User not found",
-      })
-      .status(404);
+    return res.status(404).json({ message: "User not found" });
   }
 
-  await argon2.verify(user.password, credentials.password).catch();
+  const passwordMatch = await argon2.verify(user.password, credentials.password).catch(() => false);
+
+  if (!passwordMatch) {
+    return res.status(401).json({
+      message: "Invalid credentials",
+    });
+  }
 
   (req.session as CustomSessionData).userId = String(user.id);
 
@@ -37,5 +39,5 @@ export const loginHandler = async (req: Request, res: Response) => {
     email: user.email,
   };
 
-  return res.json(userData).status(200);
+  return res.status(200).json(userData);
 };

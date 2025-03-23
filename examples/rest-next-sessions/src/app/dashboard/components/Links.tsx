@@ -1,8 +1,6 @@
-"use client";
-
 import Link from "next/link";
 
-const Links = () => (
+export const Links = () => (
   <>
     <Link href="/signup" className="mr-4 underline text-blue-500">
       Signup
@@ -15,5 +13,3 @@ const Links = () => (
     </Link>
   </>
 );
-
-export default Links;

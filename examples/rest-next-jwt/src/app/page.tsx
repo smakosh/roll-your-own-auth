@@ -1,4 +1,4 @@
-import Links from "./dashboard/components/Links";
+import { Links } from "./dashboard/components/Links";
 
 export default function Home() {
   return (

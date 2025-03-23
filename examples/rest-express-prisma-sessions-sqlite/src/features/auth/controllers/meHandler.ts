@@ -15,7 +15,7 @@ export const meHandler = async (req: Request, res: Response) => {
   const remainingTime = session.cookie.maxAge || 0;
 
   if (remainingTime <= 0) {
-    return res.json({ message: "Session has expired." }).status(401);
+    return res.status(401).json({ message: "Session has expired." });
   }
 
   const user = await prisma.user.findUnique({
@@ -29,5 +29,5 @@ export const meHandler = async (req: Request, res: Response) => {
     },
   });
 
-  return res.json(user).status(200);
+  return res.status(200).json(user);
 };

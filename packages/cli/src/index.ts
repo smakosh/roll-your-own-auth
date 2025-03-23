@@ -39,9 +39,14 @@ function getServerExamplePath(answers: any) {
         return 'examples/rest-express-prisma-sessions-sqlite';
     }
 
+    if (answers.authMethods.includes('Sessions') && answers.serverFramework === 'Express.js' && answers.database === 'Sqlite' && answers.orm === 'Drizzle') {
+        return 'examples/rest-express-drizzle-sessions-sqlite';
+    }
+
     if (answers.authMethods.includes('JWT') && answers.serverFramework === 'Express.js' && answers.database === 'Sqlite' && answers.orm === 'Prisma') {
         return 'examples/rest-express-prisma-jwt-sqlite';
     }
+
     return null; // Add more paths for different configurations as needed
 }
 
@@ -52,6 +57,10 @@ function getClientExamplePath(answers: any) {
 
     if(answers.authMethods.includes("JWT") && answers.clientFramework === 'Next.js') {
         return 'examples/rest-next-jwt';
+    }
+
+    if(answers.authMethods.includes("Sessions") && answers.clientFramework === 'TanStack Start') {
+        return 'examples/rest-tanstack-sessions';
     }
 
     return null; // Add more paths for different client frameworks as needed
@@ -116,15 +125,14 @@ function initQuestions() {
             type: 'list',
             name: 'orm',
             message: 'Pick the ORM you would to use:',
-            // @TODO: choices: ['Prisma', 'Drizzle'],
-            choices: ['Prisma'],
+            choices: ['Prisma', 'Drizzle'],
         },
         {
             type: 'list',
             name: 'clientFramework',
             message: 'Now client side, pick the client side framework you are using:',
             // @TODO: choices: ['Next.js', 'Vite.js', 'Remix'],
-            choices: ['Next.js'],
+            choices: ['Next.js', 'TanStack Start'],
         },
     ]).then(cloneExamples);
 }

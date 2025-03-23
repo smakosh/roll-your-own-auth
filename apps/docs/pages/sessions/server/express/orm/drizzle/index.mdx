@@ -1,0 +1,388 @@
+import { Callout, FileTree, Steps } from 'nextra/components'
+
+## Use the CLI (not yet supported)
+
+```bash copy
+npx ryo-auth@latest add session-express-prisma
+```
+
+## Manual Installation
+
+<FileTree>
+  <FileTree.File name="drizzle.config.ts" />
+  <FileTree.Folder name="src" defaultOpen>
+    <FileTree.Folder name="config">
+      <FileTree.File name="index.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="db" defaultOpen>
+      <FileTree.Folder name="drizzle" />
+      <FileTree.File name="dev.db" />
+      <FileTree.File name="index.ts" />
+      <FileTree.File name="schema.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="features" defaultOpen>
+      <FileTree.Folder name="auth" defaultOpen>
+        <FileTree.Folder name="controllers" defaultOpen>
+          <FileTree.File name="loginHandler.ts" />
+          <FileTree.File name="signupHandler.ts" />
+          <FileTree.File name="meHandler.ts" />
+          <FileTree.File name="logoutHandler.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="middlewares">
+          <FileTree.File name="validate.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="routes">
+          <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="types">
+          <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="validation">
+          <FileTree.File name="login.ts" />
+          <FileTree.File name="signup.ts" />
+        </FileTree.Folder>
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="server.ts" />
+  </FileTree.Folder>
+</FileTree>
+
+<Steps>
+### Install dependencies
+ 
+```bash npm2yarn copy
+npm i dotenv express express-session cors redis passport connect-redis argon2 zod cookie
+```
+
+### Install dev dependencies
+
+```bash npm2yarn copy
+npm i --dev better-sqlite3 drizzle-orm drizzle-kit @types/passport @types/express-session @types/express @types/cookie
+```
+
+### Setup your Drizzle schema and config
+
+```typescript showLineNumbers filename="/src/db/schema.ts" copy
+import { sql } from "drizzle-orm";
+import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
+
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  updatedAt: text("updated_at").default(sql`(CURRENT_TIMESTAMP)`),
+  createdAt: text("create_at").default(sql`(CURRENT_TIMESTAMP)`),
+});
+```
+
+```typescript showLineNumbers filename="/src/db/index.ts" copy
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+import * as schema from "./schema";
+
+const sqlite = new Database("./src/db/dev.db");
+export const db = drizzle({ client: sqlite, schema });
+```
+
+```typescript showLineNumbers filename="drizzle.config.ts" copy
+import "dotenv/config";
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  out: "./src/db/drizzle",
+  schema: "./src/db/schema.ts",
+  dialect: "sqlite",
+  dbCredentials: {
+    url: "file:./src/db/dev.db",
+  },
+});
+```
+ 
+### Add imports
+
+```ts showLineNumbers filename="server.ts" copy
+import { config } from "dotenv";
+import express, { Request, Response } from "express";
+import session from "express-session";
+import cors from "cors";
+import { createClient } from "redis";
+import passport from "passport";
+import RedisStore from "connect-redis";
+
+import { authRouter } from "@/features/auth/routes";
+```
+
+### Setup and load env variables
+
+```bash showLineNumbers filename=".env" copy
+# Server
+NODE_ENV="development"
+HOST="localhost"
+SCHEME="http"
+PORT="4000"
+CORS_ORIGIN="http://localhost:3000,http://localhost:4000"
+
+# Redis
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# API
+SESSION_COOKIE_NAME="RollYourOwnAuth"
+SESSION_SECRET="21fcYrNnK1OyR+UCTSfYwYMLAAcrtTOvrmj6QEouBAA="
+SESSION_MAX_AGE=86400000
+```
+ 
+```ts showLineNumbers filename="server.ts" copy
+config();
+```
+
+### Setup Redis
+
+```ts showLineNumbers filename="server.ts" copy
+const app = express();
+app.set("trust proxy", 1);
+
+const redisClient = createClient();
+redisClient.connect().catch(console.error);
+const redisStore = new RedisStore({
+  client: redisClient,
+  prefix: "auth:",
+  disableTouch: true,
+});
+
+redisClient.on("error", (error: Error) => {
+  logger.error(error.message);
+});
+redisClient.on("connect", function () {
+  console.log(
+    `Redis connected at ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
+  );
+});
+```
+
+### App uses()
+
+```ts showLineNumbers filename="server.ts" copy
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const origins = String(process.env.CORS_ORIGIN).split(",");
+      if (!origin || origins.includes(String(origin))) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed."), false);
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+  })
+);
+app.use(
+  session({
+    name: process.env.SESSION_COOKIE_NAME,
+    secret: String(process.env.SESSION_SECRET),
+    store: redisStore,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: Number(process.env.SESSION_MAX_AGE),
+      sameSite: "lax",
+    },
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+```
+
+### Add Auth router
+
+```ts showLineNumbers filename="server.ts" copy
+app.get("/", (_req: Request, res: Response) =>
+  res.send("Roll Your Own Auth API")
+);
+
+app.use("/auth", authRouter);
+
+app.listen(process.env.PORT, () => {
+  console.log(
+    `🚀 Server ready at ${process.env.SCHEME}://${process.env.HOST}:${process.env.PORT}`
+  );
+});
+```
+
+### Auth routes
+
+```ts showLineNumbers filename="/routes/index.ts" copy
+import express from "express";
+
+import { validate } from "@/features/auth/middlewares/validate";
+import { signupSchema } from "@/features/auth/validation/signup";
+import { loginSchema } from "@/features/auth/validation/login";
+
+import { logoutHandler } from "@/features/auth/controllers/logoutHandler";
+import { meHandler } from "@/features/auth/controllers/meHandler";
+import { signupHandler } from "@/features/auth/controllers/signupHandler";
+import { loginHandler } from "@/features/auth/controllers/loginHandler";
+
+const authRouter = express.Router();
+
+authRouter.post("/signup", validate(signupSchema), signupHandler);
+authRouter.post("/login", validate(loginSchema), loginHandler);
+authRouter.get("/logout", logoutHandler);
+authRouter.get("/me", meHandler);
+
+export { authRouter };
+```
+
+### /login controller
+
+```ts showLineNumbers filename="/controllers/loginHandler.ts" copy
+import { Request, Response } from "express";
+import argon2 from "argon2";
+import { eq } from "drizzle-orm";
+
+import { CustomSessionData } from "@/features/auth/types";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+
+export const loginHandler = async (req: Request, res: Response) => {
+  const credentials = req.body;
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.email, credentials.email),
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      message: "User not found",
+    });
+  }
+
+  const passwordMatch = await argon2.verify(user.password, credentials.password).catch(() => false);
+
+  if (!passwordMatch) {
+    return res.status(401).json({
+      message: "Invalid credentials",
+    });
+  }
+
+  (req.session as CustomSessionData).userId = String(user.id);
+
+  const userData = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+  };
+
+  return res.status(200).json(userData);
+};
+```
+
+### /signup controller
+```ts showLineNumbers filename="/controllers/signupHandler.ts" copy
+import { Request, Response } from "express";
+import argon2 from "argon2";
+
+import { CustomSessionData } from "@/features/auth/types";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+export const signupHandler = async (req: Request, res: Response) => {
+  const userDetails = req.body;
+
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, userDetails.email)
+  });
+
+  if (existingUser?.id) {
+    return res.status(409).json({message: "Email already exists, please use a different email or login."})
+  }
+
+  const hashedPasword = await argon2.hash(userDetails.password);
+
+  const user = await db.insert(users).values({
+    name: userDetails.name,
+    email: userDetails.email,
+    password: hashedPasword
+  }).returning({ id: users.id });
+
+  (req.session as CustomSessionData).userId = String(user[0].id);
+
+  return res.status(200).json(user[0]);
+};
+```
+
+### /me controller
+```ts showLineNumbers filename="/controllers/meHandler.ts" copy
+import { Request, Response } from "express";
+import { eq } from "drizzle-orm";
+
+import { CustomSessionData } from "@/features/auth/types";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+
+export const meHandler = async (req: Request, res: Response) => {
+  const session: CustomSessionData = req.session;
+  const sessionId: string | undefined = session.userId;
+  const userId = (req?.user as any)?.id;
+
+  if (!sessionId && !userId) {
+    return res.status(400).json({ message: "User already logged out." });
+  }
+
+  const remainingTime = session.cookie.maxAge || 0;
+
+  if (remainingTime <= 0) {
+    return res.json({ message: "Session has expired." }).status(401);
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, sessionId || userId),
+    columns: {
+      password: false,
+    },
+  });
+
+  return res.status(200).json(user);
+};
+```
+
+### /logout controller
+```ts showLineNumbers filename="/controllers/logoutHandler.ts" copy
+import { Request, Response } from "express";
+
+export const logoutHandler = async (req: Request, res: Response) => {
+  req.session.destroy((err) => {
+    if (process.env.SESSION_COOKIE_NAME) {
+      res.clearCookie(process.env.SESSION_COOKIE_NAME);
+    }
+    if (err) {
+      res
+        .json({
+          message: err.message,
+        })
+        .status(400);
+    }
+
+    res
+      .json({
+        message: "User logged out succcessfully",
+      })
+      .status(200);
+  });
+};
+```
+
+</Steps>
+
+<Callout type="warning" emoji="⚠️">
+  You have to install and start Redis locally
+</Callout>
+
+## Official example
+
+- [rest-express-drizzle-sessions-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-express-drizzle-sessions-sqlite)

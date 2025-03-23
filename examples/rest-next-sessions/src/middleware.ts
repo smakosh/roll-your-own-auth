@@ -1,27 +1,36 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { getCurrentUser } from "./lib/session";
 
+const PROTECTED_ROUTES = ["/dashboard"];
+const UNAUHTENTICATED_ROUTES = ["/"];
 const AUTH_ROUTES = ["/login", "/signup"];
 
-export async function middleware(request: NextRequest) {
-  const cookie = request.cookies.get("RollYourOwnAuth")?.value;
+export default async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
 
-  const isAuthPage = Boolean(AUTH_ROUTES.includes(request.nextUrl.pathname));
+  const isProtectedRoute = PROTECTED_ROUTES.includes(path);
+  const isUnauthenticatedRoute = UNAUHTENTICATED_ROUTES.includes(path);
+  const isAuthRoute = AUTH_ROUTES.includes(path);
 
-  if (isAuthPage) {
-    if (cookie) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+  const cookieStore = await cookies();
+  const cookie = cookieStore.get("RollYourOwnAuth")?.value;
+
+  if (isProtectedRoute) {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", req.nextUrl));
     }
-
-    return null;
   }
 
-  if (!cookie) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (isUnauthenticatedRoute) {
+    return NextResponse.next();
   }
+
+  if (isAuthRoute && cookie) {
+    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
+  }
+
+  return NextResponse.next();
 }
-
-// See "Matching Paths" below to learn more
-export const config = {
-  matcher: "/((?!api|_next/static|_next/image|favicon.ico).*)",
-};
