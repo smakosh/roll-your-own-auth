@@ -14,7 +14,7 @@ You can use this in order to build your own auth system.
 
 ### Getting started
 
-[Go here](https://roll-your-own-auth.vercel.app/)
+[Go here](https://roll-your-own-auth.smakosh.com/)
 
 ## Contributors ✨
 
