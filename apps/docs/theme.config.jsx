@@ -11,12 +11,12 @@ export default {
 
     return (
       <>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta property="og:url" content={url} />
         <meta
           property="og:image"
           content="https://roll-your-own-auth.smakosh.com/og-image.png"
         />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
           property="og:title"
           content={frontMatter.title || "Roll Your Own Auth"}
@@ -28,6 +28,14 @@ export default {
             "Skip the risks of third-party auth. Get started with a simple, secure, and self-hosted authentication system"
           }
         />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={frontMatter.title || "Roll Your Own Auth"} />
+        <meta name="twitter:description" content={
+          frontMatter.description ||
+          "Skip the risks of third-party auth. Get started with a simple, secure, and self-hosted authentication system"
+        } />
+        <meta name="twitter:image" content="https://roll-your-own-auth.smakosh.com/og-image.png" />
+        <meta name="twitter:url" content={url} />
       </>
     );
   },
