@@ -40,9 +40,6 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("asdadsadj");
-    // setIsLoading(true);
-
     const res = await fetch(`${APP_URL}/api/auth/login`, {
       method: "POST",
       body: JSON.stringify(values),
@@ -64,8 +61,6 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
         to: "/dashboard",
       });
     }
-
-    // setIsLoading(false);
   }
 
   return (

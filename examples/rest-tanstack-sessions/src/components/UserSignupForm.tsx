@@ -43,7 +43,6 @@ const formSchema = z
 
 export function UserSignupForm({ className, ...props }: UserSignupFormProps) {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = React.useState<boolean>(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,8 +56,6 @@ export function UserSignupForm({ className, ...props }: UserSignupFormProps) {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
-
     const res = await fetch(`${API_URL}/auth/signup`, {
       method: "POST",
       body: JSON.stringify(values),
@@ -78,9 +75,9 @@ export function UserSignupForm({ className, ...props }: UserSignupFormProps) {
     if (user?.id || user?.access_token) {
       navigate({ to: "/dashboard" });
     }
-
-    setIsLoading(false);
   }
+
+  const isLoading = form.formState.isSubmitting;
 
   return (
     <div className={cn("grid gap-6", className)} {...props}>
