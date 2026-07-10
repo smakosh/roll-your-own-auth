@@ -1,3 +1,3 @@
-export interface CustomExpressUser extends Express.User {
+export interface CustomExpressUser {
   id: string;
 }

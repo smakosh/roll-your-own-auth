@@ -32,7 +32,7 @@ export default function SignupPage() {
           <div className="relative z-20 mt-auto">
             <blockquote className="space-y-2">
               <p className="text-lg">
-                &ldquo;It's time to roll your own auth&rdquo;
+                &ldquo;It&apos;s time to roll your own auth&rdquo;
               </p>
               <footer className="text-sm">Smakosh</footer>
             </blockquote>

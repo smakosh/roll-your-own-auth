@@ -1,0 +1,8 @@
+{
+  "title": "JWT",
+  "pages": [
+    "index",
+    "client",
+    "server"
+  ]
+}

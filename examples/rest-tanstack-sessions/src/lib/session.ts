@@ -1,11 +1,11 @@
 import { API_URL } from "@/lib/env";
 import { createServerFn } from "@tanstack/react-start";
-import { getHeaders } from "@tanstack/react-start/server";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 
 export const getCurrentUser = createServerFn({
   method: "GET",
 }).handler(async () => {
-  const headers = getHeaders() as HeadersInit;
+  const headers = getRequestHeaders() as HeadersInit;
 
   const res = await fetch(`${API_URL}/auth/me`, {
     headers,

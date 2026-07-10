@@ -17,12 +17,12 @@ export class AuthService {
   async signup(userDetails: CreateUserDto) {
     const user = await this.usersService.createUser(userDetails);
 
-    const access_token = jwt.sign({ id: user.id }, this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'), {
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN'),
+    const access_token = jwt.sign({ id: user.id }, this.configService.getOrThrow<string>('JWT_ACCESS_TOKEN_SECRET'), {
+      expiresIn: this.configService.getOrThrow<string>('JWT_ACCESS_EXPIRES_IN') as jwt.SignOptions['expiresIn'],
     });
 
-    const refresh_token = jwt.sign({ id: user.id }, this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'), {
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
+    const refresh_token = jwt.sign({ id: user.id }, this.configService.getOrThrow<string>('JWT_REFRESH_TOKEN_SECRET'), {
+      expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as jwt.SignOptions['expiresIn'],
     });
 
     return { access_token, refresh_token };
@@ -33,12 +33,12 @@ export class AuthService {
 
     await argon2.verify(user.password, credentials.password).catch();
 
-    const access_token = jwt.sign({ id: user.id }, this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'), {
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN'),
+    const access_token = jwt.sign({ id: user.id }, this.configService.getOrThrow<string>('JWT_ACCESS_TOKEN_SECRET'), {
+      expiresIn: this.configService.getOrThrow<string>('JWT_ACCESS_EXPIRES_IN') as jwt.SignOptions['expiresIn'],
     });
 
-    const refresh_token = jwt.sign({ id: user.id }, this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'), {
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
+    const refresh_token = jwt.sign({ id: user.id }, this.configService.getOrThrow<string>('JWT_REFRESH_TOKEN_SECRET'), {
+      expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as jwt.SignOptions['expiresIn'],
     });
 
     return { access_token, refresh_token };
@@ -47,15 +47,23 @@ export class AuthService {
   async refresh(old_refresh_token: string) {
     const decoded = jwt.verify(
       old_refresh_token,
-      this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+      this.configService.getOrThrow<string>('JWT_REFRESH_TOKEN_SECRET'),
     ) as Request['user'];
-    const access_token = jwt.sign({ id: decoded.id }, this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'), {
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN'),
-    });
+    const access_token = jwt.sign(
+      { id: decoded.id },
+      this.configService.getOrThrow<string>('JWT_ACCESS_TOKEN_SECRET'),
+      {
+        expiresIn: this.configService.getOrThrow<string>('JWT_ACCESS_EXPIRES_IN') as jwt.SignOptions['expiresIn'],
+      },
+    );
 
-    const refresh_token = jwt.sign({ id: decoded.id }, this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'), {
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
-    });
+    const refresh_token = jwt.sign(
+      { id: decoded.id },
+      this.configService.getOrThrow<string>('JWT_REFRESH_TOKEN_SECRET'),
+      {
+        expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as jwt.SignOptions['expiresIn'],
+      },
+    );
 
     return { access_token, refresh_token };
   }

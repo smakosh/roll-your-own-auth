@@ -1,0 +1,427 @@
+---
+title: Express
+description: JWT-based auth with Express.js, Prisma and SQLite
+---
+
+## Use the CLI
+
+```bash
+npx ryo-auth@latest add jwt-express-prisma
+```
+
+## Manual Installation
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="config">
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="features" defaultOpen>
+      <Folder name="auth" defaultOpen>
+        <Folder name="controllers" defaultOpen>
+          <File name="loginHandler.ts" />
+          <File name="signupHandler.ts" />
+          <File name="meHandler.ts" />
+          <File name="logoutHandler.ts" />
+          <File name="refreshHandler.ts" />
+        </Folder>
+        <Folder name="middlewares">
+          <File name="validate.ts" />
+        </Folder>
+        <Folder name="routes">
+          <File name="index.ts" />
+        </Folder>
+        <Folder name="types">
+          <File name="index.ts" />
+        </Folder>
+        <Folder name="validation">
+          <File name="login.ts" />
+          <File name="signup.ts" />
+        </Folder>
+      </Folder>
+    </Folder>
+    <File name="server.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+### Install dependencies
+ 
+```bash
+npm i dotenv express cors argon2 zod cookie cookie-parser jsonwebtoken
+```
+
+</Step>
+
+<Step>
+### Install dev dependencies
+
+```bash
+npm i --dev @prisma/client prisma @types/express @types/cookie @types/cors @types/cookie-parser @types/jsonwebtoken
+```
+
+</Step>
+
+<Step>
+### Setup your Prisma schema
+
+```prisma lineNumbers title="/prisma/schema.prisma"
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+ 
+</Step>
+
+<Step>
+### Add imports
+
+```ts lineNumbers title="server.ts"
+import { config } from "dotenv";
+import express, { Request, Response } from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+
+import { authRouter } from "@/features/auth/routes";
+```
+
+</Step>
+
+<Step>
+### Setup and load env variables
+
+```bash lineNumbers title=".env"
+# JWT
+JWT_SECRET="" # Run `openssl rand -base64 32` in your CLI to generate a secret
+JWT_REFRESH_SECRET="" # Run `openssl rand -base64 32` in your CLI to generate a secret
+JWT_EXPIRES_IN=30m
+JWT_REFRESH_EXPIRES_IN=30d
+
+# Server
+NODE_ENV="development"
+HOST="localhost"
+SCHEME="http"
+PORT="4000"
+CORS_ORIGIN="http://localhost:3000,http://localhost:4000"
+
+# Cookie
+ACCESS_TOKEN_COOKIE_NAME=RollYourOwnAuth
+REFRESH_TOKEN_COOKIE_NAME=RollYourOwnAuth_REFRESH
+REFRESH_TOKEN_COOKIE_MAX_AGE=1800000
+ACCESS_TOKEN_COOKIE_MAX_AGE=2592000000
+```
+ 
+```ts lineNumbers title="server.ts"
+config();
+```
+
+</Step>
+
+<Step>
+### App uses()
+
+```ts lineNumbers title="server.ts"
+const app = express();
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const origins = String(process.env.CORS_ORIGIN).split(",");
+      if (!origin || origins.includes(String(origin))) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed."), false);
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+  })
+);
+app.use(cookieParser());
+```
+
+</Step>
+
+<Step>
+### Add Auth router
+
+```ts lineNumbers title="server.ts"
+app.get("/", (_req: Request, res: Response) =>
+  res.send("Roll Your Own Auth API")
+);
+
+app.use("/auth", authRouter);
+
+app.listen(process.env.PORT, () => {
+  console.log(
+    `🚀 Server ready at ${process.env.SCHEME}://${process.env.HOST}:${process.env.PORT}`
+  );
+});
+```
+
+</Step>
+
+<Step>
+### Auth routes
+
+```ts lineNumbers title="/routes/index.ts"
+import express from "express";
+
+import { validate } from "@/features/auth/middlewares/validate";
+import { signupSchema } from "@/features/auth/validation/signup";
+import { loginSchema } from "@/features/auth/validation/login";
+
+import { logoutHandler } from "@/features/auth/controllers/logoutHandler";
+import { meHandler } from "@/features/auth/controllers/meHandler";
+import { signupHandler } from "@/features/auth/controllers/signupHandler";
+import { loginHandler } from "@/features/auth/controllers/loginHandler";
+import { refreshHandler } from "@/features/auth/controllers/refreshHandler";
+
+const authRouter = express.Router();
+
+authRouter.post("/signup", validate(signupSchema), signupHandler);
+authRouter.post("/login", validate(loginSchema), loginHandler);
+authRouter.post(
+  "/refresh",
+  refreshHandler
+);
+authRouter.get(
+  "/logout",
+  logoutHandler
+);
+authRouter.get(
+  "/me",
+  meHandler
+);
+
+export { authRouter };
+```
+
+</Step>
+
+<Step>
+### /login controller
+
+```ts lineNumbers title="/controllers/loginHandler.ts"
+import { Request, Response } from "express";
+import argon2 from "argon2";
+import jwt from "jsonwebtoken";
+
+import { prisma } from "@/config";
+
+export const loginHandler = async (req: Request, res: Response) => {
+  const credentials = req.body;
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email: credentials.email,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      password: true,
+    },
+  });
+
+  if (!user) {
+    return res
+      .json({
+        message: "User not found",
+      })
+      .status(404);
+  }
+
+  await argon2.verify(user.password, credentials.password).catch();
+
+  const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+
+  const refresh_token = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  return res.json({ access_token }).status(200);
+};
+```
+
+</Step>
+
+<Step>
+### /signup controller
+```ts lineNumbers title="/controllers/signupHandler.ts"
+import { Request, Response } from "express";
+import argon2 from "argon2";
+import jwt from "jsonwebtoken";
+
+import { prisma } from "@/config";
+
+export const signupHandler = async (req: Request, res: Response) => {
+  const userDetails = req.body;
+
+  const hashedPasword = await argon2.hash(userDetails.password);
+
+  const user = await prisma.user.create({
+    data: {
+      name: userDetails.name,
+      email: userDetails.email,
+      password: hashedPasword,
+    },
+  });
+
+  const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+
+  const refresh_token = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE)
+  });
+
+  return res.json({ access_token }).status(200);
+};
+```
+
+</Step>
+
+<Step>
+### /me controller
+```ts lineNumbers title="/controllers/meHandler.ts"
+import { Request, Response } from "express";
+import jwt from 'jsonwebtoken'
+import { prisma } from "@/config";
+
+export const meHandler = async (req: Request, res: Response) => {
+  const { RollYourOwnAuth } = req.cookies;
+
+  if (!RollYourOwnAuth) return res.status(401).json({ message: "Unauthorized!" });
+
+  const decoded: any = jwt.verify(RollYourOwnAuth, process.env.JWT_SECRET!)
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id: decoded.id,
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+    },
+  });
+
+  return res.json(user).status(200);
+};
+```
+
+</Step>
+
+<Step>
+### /logout controller
+```ts lineNumbers title="/controllers/logoutHandler.ts"
+import { Request, Response } from "express";
+
+export const logoutHandler = async (_req: Request, res: Response) => {
+  res
+    .clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME!)
+    .clearCookie(process.env.ACCESS_TOKEN_COOKIE_NAME!)
+    .status(200)
+    .end();
+};
+```
+
+</Step>
+
+<Step>
+### /refresh controller
+```ts lineNumbers title="/controllers/logoutHandler.ts"
+import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+
+export const refreshHandler = (req: Request, res: Response) => {
+  const { RollYourOwnAuth_REFRESH } = req.cookies;
+
+  if (!RollYourOwnAuth_REFRESH) {
+    return res.status(400).json({ message: "Refresh token is expired!" });
+  }
+
+  const decoded: any = jwt.verify(RollYourOwnAuth_REFRESH, process.env.JWT_REFRESH_SECRET!)
+
+  const access_token = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+
+  const refresh_token = jwt.sign(
+    { id: decoded.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+  );
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  return res.json({ access_token }).status(200);
+};
+```
+
+</Step>
+</Steps>
+
+## Official example
+
+- [rest-express-prisma-jwt-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-express-prisma-jwt-sqlite)

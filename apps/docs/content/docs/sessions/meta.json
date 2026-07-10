@@ -1,0 +1,8 @@
+{
+  "title": "Sessions",
+  "pages": [
+    "index",
+    "client",
+    "server"
+  ]
+}

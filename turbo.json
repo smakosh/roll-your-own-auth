@@ -4,10 +4,17 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "out/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {},
+    "rest-express-prisma-sessions-sqlite#typecheck": {
+      "dependsOn": ["rest-express-prisma-jwt-sqlite#typecheck"]
     },
     "dev": {
       "cache": false,
