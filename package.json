@@ -17,7 +17,7 @@
     "build:cli": "turbo --filter=ryo-auth build",
     "dev": "turbo dev --parallel",
     "cli:dev": "turbo --filter=ryo-auth dev",
-    "cli:start": "pnpm --filter=ryo-auth start:dev",
+    "cli:start": "pnpm --filter=ryo-auth start",
     "docs:dev": "pnpm --filter=docs dev",
     "lint": "turbo lint",
     "test": "turbo test",
