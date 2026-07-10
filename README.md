@@ -16,6 +16,22 @@ You can use this in order to build your own auth system.
 
 [Go here](https://roll-your-own-auth.smakosh.com/)
 
+### Quick start via the CLI
+
+Scaffold a full server + client auth setup interactively:
+
+```bash
+npx ryo-auth@latest init
+```
+
+Or copy just the auth code from an example into your existing project, shadcn-style:
+
+```bash
+npx ryo-auth@latest add session-express-prisma
+```
+
+Run `npx ryo-auth@latest list` to see every available component.
+
 ## Contributors ✨
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):

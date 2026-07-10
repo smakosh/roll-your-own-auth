@@ -18,13 +18,13 @@ export const signupHandler = async (req: Request, res: Response) => {
   });
 
   const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
+    expiresIn: process.env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
   });
 
   const refresh_token = jwt.sign(
     { id: user.id },
     process.env.JWT_REFRESH_SECRET!,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions["expiresIn"] }
   );
 
   res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {

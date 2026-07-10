@@ -2,12 +2,12 @@
   "name": "rest-tanstack-sessions",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vinxi dev --port 3000",
-    "build": "vinxi build",
-    "start": "vinxi start"
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "vite preview"
   },
   "keywords": [],
   "author": "",
@@ -22,32 +22,27 @@
     "@radix-ui/react-slot": "1.1.1",
     "@radix-ui/react-toast": "1.2.3",
     "@tanstack/react-query": "^5.69.0",
-    "@tanstack/react-router": "^1.114.27",
-    "@tanstack/react-router-devtools": "^1.114.27",
-    "@tanstack/react-router-with-query": "^1.114.27",
-    "@tanstack/react-start": "^1.114.27",
-    "@tanstack/router-plugin": "^1.114.27",
+    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/react-router-ssr-query": "^1.167.1",
+    "@tanstack/react-start": "^1.168.27",
     "class-variance-authority": "0.7.0",
     "clsx": "^2.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "7.45.4",
     "tailwind-merge": "^1.14.0",
-    "tailwindcss": "4.0.15",
+    "tailwindcss": "^4.3.2",
     "tailwindcss-animate": "1.0.7",
-    "vinxi": "^0.5.3",
     "zod": "3.21.4"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.15",
+    "@tailwindcss/vite": "^4.3.2",
     "@tanstack/react-query-devtools": "^5.69.0",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "10.4.15",
-    "postcss": "8.4.29",
-    "typescript": "^5.8.2",
-    "vite": "^6.2.2",
-    "vite-tsconfig-paths": "^5.1.4"
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.3"
   }
 }

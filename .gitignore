@@ -27,6 +27,9 @@ out/
 build
 dist
 
+# Fumadocs generated collections
+.source/
+
 
 # Debug
 npm-debug.log*
@@ -36,3 +39,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# TypeScript incremental build info
+*.tsbuildinfo

@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "index",
+    "sessions",
+    "jwt",
+    "sso",
+    "passwordless",
+    "2fa"
+  ]
+}
