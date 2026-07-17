@@ -1,0 +1,227 @@
+---
+title: Express
+description: Passwordless magic-link auth with Express.js, Prisma and SQLite
+---
+
+## Use the CLI
+
+```bash
+npx ryo-auth@latest add passwordless-express-prisma
+```
+
+## Manual Installation
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="config">
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="features" defaultOpen>
+      <Folder name="auth" defaultOpen>
+        <Folder name="controllers" defaultOpen>
+          <File name="magicLinkHandler.ts" />
+          <File name="verifyMagicLinkHandler.ts" />
+          <File name="refreshHandler.ts" />
+          <File name="meHandler.ts" />
+          <File name="logoutHandler.ts" />
+        </Folder>
+        <Folder name="middlewares">
+          <File name="validate.ts" />
+        </Folder>
+        <Folder name="routes">
+          <File name="index.ts" />
+        </Folder>
+        <Folder name="utils">
+          <File name="tokens.ts" />
+          <File name="email.ts" />
+        </Folder>
+        <Folder name="validation">
+          <File name="magicLink.ts" />
+        </Folder>
+      </Folder>
+    </Folder>
+    <File name="server.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+### Install dependencies
+
+```bash
+npm i dotenv express cors helmet cookie-parser jsonwebtoken nodemailer zod
+```
+
+</Step>
+
+<Step>
+### Install dev dependencies
+
+```bash
+npm i --dev @prisma/client prisma @types/express @types/cors @types/cookie-parser @types/jsonwebtoken @types/nodemailer
+```
+
+</Step>
+
+<Step>
+### Setup your Prisma schema
+
+No `password` column — users exist by email alone.
+
+```prisma lineNumbers title="/prisma/schema.prisma"
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+</Step>
+
+<Step>
+### Setup env variables
+
+```bash lineNumbers title=".env"
+# Server
+NODE_ENV="development"
+HOST="localhost"
+SCHEME="http"
+PORT="4000"
+CORS_ORIGIN="http://localhost:3000,http://localhost:4000"
+FRONTEND_URL="http://localhost:3000"
+
+# JWT
+JWT_SECRET="" # Run `openssl rand -base64 32`
+JWT_REFRESH_SECRET="" # Run `openssl rand -base64 32`
+JWT_EXPIRES_IN=30m
+JWT_REFRESH_EXPIRES_IN=30d
+MAGIC_LINK_SECRET="" # Run `openssl rand -base64 32`
+
+# SMTP (e.g. Mailtrap, Resend, SES)
+SMTP_HOST=""
+SMTP_PORT=587
+SMTP_USER=""
+SMTP_PASS=""
+
+# Cookie
+ACCESS_TOKEN_COOKIE_NAME=RollYourOwnAuth
+REFRESH_TOKEN_COOKIE_NAME=RollYourOwnAuth_REFRESH
+REFRESH_TOKEN_COOKIE_MAX_AGE=1800000
+ACCESS_TOKEN_COOKIE_MAX_AGE=2592000000
+```
+
+</Step>
+
+<Step>
+### Token utilities
+
+Three token types: access (30m), refresh (30d), magic link (15m, single purpose).
+
+```ts lineNumbers title="/features/auth/utils/tokens.ts"
+import jwt from "jsonwebtoken";
+
+export function generateAccessToken(userId: string): string {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+}
+
+export function generateRefreshToken(userId: string): string {
+  return jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET!, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
+  });
+}
+
+export function generateMagicLinkToken(userId: string): string {
+  return jwt.sign({ id: userId }, process.env.MAGIC_LINK_SECRET!, {
+    expiresIn: "15m",
+  });
+}
+
+export function verifyToken(token: string, secret: string): unknown {
+  return jwt.verify(token, secret);
+}
+```
+
+</Step>
+
+<Step>
+### Email utility
+
+```ts lineNumbers title="/features/auth/utils/email.ts"
+import nodemailer from "nodemailer";
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT ?? 587),
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+export async function sendMagicLink(email: string, token: string): Promise<void> {
+  const frontendUrl = String(process.env.FRONTEND_URL ?? "http://localhost:3000");
+  const link = `${frontendUrl}/verify?token=${token}`;
+
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: "Your magic link",
+    html: `<p>Click <a href="${link}">here</a> to log in. This link expires in 15 minutes.</p>`,
+  });
+}
+```
+
+</Step>
+
+<Step>
+### Magic link flow
+
+1. User enters email — `POST /auth/magic-link` upserts the user and emails a 15-minute JWT.
+2. User clicks the link — the frontend POSTs the token to `/auth/verify-magic-link`.
+3. Server verifies the magic-link JWT, issues the standard access/refresh cookie pair.
+
+```ts lineNumbers title="/features/auth/controllers/magicLinkHandler.ts"
+import { Request, Response } from "express";
+
+import { prisma } from "@/config";
+import { generateMagicLinkToken } from "@/features/auth/utils/tokens";
+import { sendMagicLink } from "@/features/auth/utils/email";
+
+export const magicLinkHandler = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: {},
+    create: { email },
+  });
+
+  const token = generateMagicLinkToken(user.id);
+
+  await sendMagicLink(email, token);
+
+  return res.json({ message: "Magic link sent" }).status(200);
+};
+```
+
+</Step>
+</Steps>
+
+The `verify-magic-link`, `refresh`, `me` and `logout` handlers mirror the [JWT Express example](/jwt/server/express) — once the magic link is exchanged, the session is a plain JWT cookie pair.
+
+## Official example
+
+- [rest-express-prisma-passwordless-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-express-prisma-passwordless-sqlite)

@@ -1,4 +1,4 @@
-export type AuthMethod = "Sessions" | "JWT";
+export type AuthMethod = "Sessions" | "JWT" | "SSO" | "Passwordless";
 export type Side = "server" | "client";
 
 export interface ExampleEntry {
@@ -25,7 +25,8 @@ export const EXAMPLES: ExampleEntry[] = [
     framework: "Express.js",
     database: "SQLite",
     orm: "Prisma",
-    description: "Express REST API with session auth (Prisma + SQLite + Redis store)",
+    description:
+      "Express REST API with session auth (Prisma + SQLite + Redis store)",
   },
   {
     name: "session-express-drizzle",
@@ -35,7 +36,8 @@ export const EXAMPLES: ExampleEntry[] = [
     framework: "Express.js",
     database: "SQLite",
     orm: "Drizzle",
-    description: "Express REST API with session auth (Drizzle + SQLite + Redis store)",
+    description:
+      "Express REST API with session auth (Drizzle + SQLite + Redis store)",
   },
   {
     name: "jwt-express-prisma",
@@ -81,6 +83,49 @@ export const EXAMPLES: ExampleEntry[] = [
     framework: "TanStack Start",
     description: "TanStack Start client consuming a session-based REST API",
   },
+  {
+    name: "session-hono-prisma",
+    path: "examples/rest-hono-prisma-sessions-sqlite",
+    side: "server",
+    auth: "Sessions",
+    framework: "Hono",
+    database: "SQLite",
+    orm: "Prisma",
+    description:
+      "Hono REST API with session auth (Prisma + SQLite + Redis store)",
+  },
+  {
+    name: "jwt-hono-prisma",
+    path: "examples/rest-hono-prisma-jwt-sqlite",
+    side: "server",
+    auth: "JWT",
+    framework: "Hono",
+    database: "SQLite",
+    orm: "Prisma",
+    description: "Hono REST API with JWT auth (Prisma + SQLite)",
+  },
+  {
+    name: "sso-github-express-prisma",
+    path: "examples/rest-express-prisma-sso-github-sqlite",
+    side: "server",
+    auth: "SSO",
+    framework: "Express.js",
+    database: "SQLite",
+    orm: "Prisma",
+    description:
+      "Express REST API with GitHub OAuth SSO (Passport + Prisma + SQLite)",
+  },
+  {
+    name: "passwordless-express-prisma",
+    path: "examples/rest-express-prisma-passwordless-sqlite",
+    side: "server",
+    auth: "Passwordless",
+    framework: "Express.js",
+    database: "SQLite",
+    orm: "Prisma",
+    description:
+      "Express REST API with passwordless magic-link auth (nodemailer + Prisma + SQLite)",
+  },
 ];
 
 export function findByName(name: string): ExampleEntry | undefined {
@@ -100,7 +145,7 @@ export interface ClientSelection {
 }
 
 export function findServerExample(
-  selection: ServerSelection
+  selection: ServerSelection,
 ): ExampleEntry | undefined {
   return EXAMPLES.find(
     (example) =>
@@ -108,23 +153,25 @@ export function findServerExample(
       example.auth === selection.auth &&
       example.framework === selection.framework &&
       example.database === selection.database &&
-      example.orm === selection.orm
+      example.orm === selection.orm,
   );
 }
 
 export function findClientExample(
-  selection: ClientSelection
+  selection: ClientSelection,
 ): ExampleEntry | undefined {
   return EXAMPLES.find(
     (example) =>
       example.side === "client" &&
       example.auth === selection.auth &&
-      example.framework === selection.framework
+      example.framework === selection.framework,
   );
 }
 
 function unique(values: (string | undefined)[]): string[] {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+  return [
+    ...new Set(values.filter((value): value is string => Boolean(value))),
+  ];
 }
 
 /** Choices are derived from the registry so prompts can never lead to a dead end. */
@@ -135,15 +182,16 @@ export const choices = {
   serverFrameworks(auth: AuthMethod): string[] {
     return unique(
       EXAMPLES.filter((e) => e.side === "server" && e.auth === auth).map(
-        (e) => e.framework
-      )
+        (e) => e.framework,
+      ),
     );
   },
   databases(auth: AuthMethod, framework: string): string[] {
     return unique(
       EXAMPLES.filter(
-        (e) => e.side === "server" && e.auth === auth && e.framework === framework
-      ).map((e) => e.database)
+        (e) =>
+          e.side === "server" && e.auth === auth && e.framework === framework,
+      ).map((e) => e.database),
     );
   },
   orms(auth: AuthMethod, framework: string, database: string): string[] {
@@ -153,15 +201,15 @@ export const choices = {
           e.side === "server" &&
           e.auth === auth &&
           e.framework === framework &&
-          e.database === database
-      ).map((e) => e.orm)
+          e.database === database,
+      ).map((e) => e.orm),
     );
   },
   clientFrameworks(auth: AuthMethod): string[] {
     return unique(
       EXAMPLES.filter((e) => e.side === "client" && e.auth === auth).map(
-        (e) => e.framework
-      )
+        (e) => e.framework,
+      ),
     );
   },
 };

@@ -1,0 +1,125 @@
+---
+title: Hono
+description: JWT-based auth with Hono, Prisma and SQLite
+---
+
+## Use the CLI
+
+```bash
+npx ryo-auth@latest add jwt-hono-prisma
+```
+
+## Manual Installation
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="config">
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="features" defaultOpen>
+      <Folder name="auth" defaultOpen>
+        <Folder name="controllers" defaultOpen>
+          <File name="loginHandler.ts" />
+          <File name="signupHandler.ts" />
+          <File name="refreshHandler.ts" />
+          <File name="meHandler.ts" />
+          <File name="logoutHandler.ts" />
+        </Folder>
+        <Folder name="lib">
+          <File name="tokens.ts" />
+        </Folder>
+        <Folder name="middlewares">
+          <File name="validate.ts" />
+        </Folder>
+        <Folder name="routes">
+          <File name="index.ts" />
+        </Folder>
+        <Folder name="validation">
+          <File name="login.ts" />
+          <File name="signup.ts" />
+        </Folder>
+      </Folder>
+    </Folder>
+    <File name="server.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+### Install dependencies
+
+```bash
+npm i hono @hono/node-server dotenv argon2 jsonwebtoken zod
+```
+
+</Step>
+
+<Step>
+### Install dev dependencies
+
+```bash
+npm i --dev @prisma/client prisma tsx @types/jsonwebtoken
+```
+
+</Step>
+
+<Step>
+### Token helpers
+
+Same cookie strategy as the Express JWT example — access + refresh in httpOnly cookies, refresh rotates both.
+
+```ts lineNumbers title="/features/auth/lib/tokens.ts"
+import type { Context } from "hono";
+import { setCookie, deleteCookie } from "hono/cookie";
+import jwt from "jsonwebtoken";
+
+const ACCESS_COOKIE = process.env.ACCESS_TOKEN_COOKIE_NAME ?? "RollYourOwnAuth";
+const REFRESH_COOKIE = process.env.REFRESH_TOKEN_COOKIE_NAME ?? "RollYourOwnAuth_REFRESH";
+
+export function generateAccessToken(userId: string): string {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+}
+
+export function generateRefreshToken(userId: string): string {
+  return jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET!, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
+  });
+}
+
+export function setTokenCookies(c: Context, userId: string): { access_token: string } {
+  const access_token = generateAccessToken(userId);
+  const refresh_token = generateRefreshToken(userId);
+  const secure = process.env.NODE_ENV === "production";
+
+  setCookie(c, REFRESH_COOKIE, refresh_token, {
+    httpOnly: true,
+    sameSite: "Lax",
+    path: "/",
+    secure,
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE ?? 2592000000) / 1000,
+  });
+  setCookie(c, ACCESS_COOKIE, access_token, {
+    httpOnly: true,
+    sameSite: "Lax",
+    path: "/",
+    secure,
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE ?? 1800000) / 1000,
+  });
+
+  return { access_token };
+}
+
+export function clearTokenCookies(c: Context): void {
+  deleteCookie(c, ACCESS_COOKIE, { path: "/" });
+  deleteCookie(c, REFRESH_COOKIE, { path: "/" });
+}
+```
+
+</Step>
+</Steps>
+
+## Official example
+
+- [rest-hono-prisma-jwt-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-hono-prisma-jwt-sqlite)

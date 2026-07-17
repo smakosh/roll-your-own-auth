@@ -1,0 +1,144 @@
+---
+title: Hono
+description: Session-based auth with Hono, Prisma and SQLite
+---
+
+## Use the CLI
+
+```bash
+npx ryo-auth@latest add session-hono-prisma
+```
+
+## Manual Installation
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="config">
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="features" defaultOpen>
+      <Folder name="auth" defaultOpen>
+        <Folder name="controllers" defaultOpen>
+          <File name="loginHandler.ts" />
+          <File name="signupHandler.ts" />
+          <File name="meHandler.ts" />
+          <File name="logoutHandler.ts" />
+        </Folder>
+        <Folder name="lib">
+          <File name="cookies.ts" />
+        </Folder>
+        <Folder name="middlewares">
+          <File name="validate.ts" />
+        </Folder>
+        <Folder name="routes">
+          <File name="index.ts" />
+        </Folder>
+        <Folder name="validation">
+          <File name="login.ts" />
+          <File name="signup.ts" />
+        </Folder>
+        <File name="sessions.ts" />
+      </Folder>
+    </Folder>
+    <File name="server.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+### Install dependencies
+
+```bash
+npm i hono @hono/node-server dotenv redis argon2 zod
+```
+
+</Step>
+
+<Step>
+### Install dev dependencies
+
+```bash
+npm i --dev @prisma/client prisma tsx
+```
+
+</Step>
+
+<Step>
+### Session store
+
+A tiny Redis-backed store: an opaque session id maps to a user id with a 7-day TTL.
+
+```ts lineNumbers title="/features/auth/sessions.ts"
+import { randomUUID } from "node:crypto";
+import { createClient } from "redis";
+
+const client = createClient({
+  url: process.env.REDIS_URL ?? "redis://localhost:6379",
+});
+client.on("error", (error: Error) => console.error("Redis error:", error.message));
+client.connect().catch(console.error);
+
+const PREFIX = "auth:";
+const TTL_SECONDS = 60 * 60 * 24 * 7;
+
+export const sessions = {
+  async create(userId: string): Promise<string> {
+    const sid = randomUUID();
+    await client.set(`${PREFIX}${sid}`, userId, { EX: TTL_SECONDS });
+    return sid;
+  },
+  async get(sid: string): Promise<string | null> {
+    return client.get(`${PREFIX}${sid}`);
+  },
+  async destroy(sid: string): Promise<void> {
+    await client.del(`${PREFIX}${sid}`);
+  },
+};
+```
+
+</Step>
+
+<Step>
+### Cookie helpers
+
+```ts lineNumbers title="/features/auth/lib/cookies.ts"
+import type { Context } from "hono";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+
+import { sessions } from "@/features/auth/sessions";
+
+export const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? "RollYourOwnAuth";
+
+export async function getSessionUserId(c: Context): Promise<string | null> {
+  const sid = getCookie(c)[SESSION_COOKIE];
+  return sid ? sessions.get(sid) : null;
+}
+
+export async function setSessionCookie(c: Context, userId: string): Promise<void> {
+  const sid = await sessions.create(userId);
+  setCookie(c, SESSION_COOKIE, sid, {
+    httpOnly: true,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
+export async function clearSessionCookie(c: Context): Promise<void> {
+  const sid = getCookie(c)[SESSION_COOKIE];
+  if (sid) await sessions.destroy(sid);
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+}
+```
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+  You have to install and start Redis locally
+</Callout>
+
+## Official example
+
+- [rest-hono-prisma-sessions-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-hono-prisma-sessions-sqlite)

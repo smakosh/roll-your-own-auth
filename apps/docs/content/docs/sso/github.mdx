@@ -1,6 +1,257 @@
 ---
 title: GitHub
-description: Coming soon
+description: GitHub OAuth SSO with Express.js, Prisma and SQLite
 ---
 
-Coming soon
+## Use the CLI
+
+```bash
+npx ryo-auth@latest add sso-github-express-prisma
+```
+
+## Manual Installation
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <Folder name="config">
+      <File name="index.ts" />
+    </Folder>
+    <Folder name="features" defaultOpen>
+      <Folder name="auth" defaultOpen>
+        <Folder name="config">
+          <File name="passport.ts" />
+        </Folder>
+        <Folder name="controllers" defaultOpen>
+          <File name="githubCallbackHandler.ts" />
+          <File name="refreshHandler.ts" />
+          <File name="meHandler.ts" />
+          <File name="logoutHandler.ts" />
+        </Folder>
+        <Folder name="routes">
+          <File name="index.ts" />
+        </Folder>
+      </Folder>
+    </Folder>
+    <File name="server.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+### Install dependencies
+
+```bash
+npm i dotenv express cors helmet cookie-parser passport passport-github2 jsonwebtoken
+```
+
+</Step>
+
+<Step>
+### Install dev dependencies
+
+```bash
+npm i --dev @prisma/client prisma @types/express @types/cors @types/cookie-parser @types/passport @types/passport-github2 @types/jsonwebtoken
+```
+
+</Step>
+
+<Step>
+### Setup your Prisma schema
+
+`githubId` is optional and unique — users are matched to their GitHub account on first sign-in.
+
+```prisma lineNumbers title="/prisma/schema.prisma"
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  githubId  String?  @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+</Step>
+
+<Step>
+### Create a GitHub OAuth App
+
+At [github.com/settings/developers](https://github.com/settings/developers):
+
+- Homepage URL: `http://localhost:3000`
+- Authorization callback URL: `http://localhost:4000/auth/github/callback`
+
+</Step>
+
+<Step>
+### Setup env variables
+
+```bash lineNumbers title=".env"
+# Server
+NODE_ENV="development"
+HOST="localhost"
+SCHEME="http"
+PORT="4000"
+CORS_ORIGIN="http://localhost:3000,http://localhost:4000"
+FRONTEND_URL="http://localhost:3000"
+
+# JWT
+JWT_SECRET="" # Run `openssl rand -base64 32`
+JWT_REFRESH_SECRET="" # Run `openssl rand -base64 32`
+JWT_EXPIRES_IN=30m
+JWT_REFRESH_EXPIRES_IN=30d
+
+# GitHub OAuth App
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
+GITHUB_CALLBACK_URL="http://localhost:4000/auth/github/callback"
+
+# Cookie
+ACCESS_TOKEN_COOKIE_NAME=RollYourOwnAuth
+REFRESH_TOKEN_COOKIE_NAME=RollYourOwnAuth_REFRESH
+REFRESH_TOKEN_COOKIE_MAX_AGE=1800000
+ACCESS_TOKEN_COOKIE_MAX_AGE=2592000000
+```
+
+</Step>
+
+<Step>
+### Passport GitHub strategy
+
+Finds or creates the user by `githubId` on every sign-in.
+
+```ts lineNumbers title="/features/auth/config/passport.ts"
+import passport from "passport";
+import { Strategy as GitHubStrategy } from "passport-github2";
+
+import { prisma } from "@/config";
+
+passport.use(
+  new GitHubStrategy(
+    {
+      clientID: String(process.env.GITHUB_CLIENT_ID),
+      clientSecret: String(process.env.GITHUB_CLIENT_SECRET),
+      callbackURL: String(process.env.GITHUB_CALLBACK_URL),
+      scope: ["user:email"],
+    },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        const githubId = String(profile.id);
+        const email = profile.emails?.[0]?.value;
+        const name = profile.displayName || profile.username || null;
+
+        if (!email) {
+          return done(new Error("GitHub account has no public email."));
+        }
+
+        const user = await prisma.user.upsert({
+          where: { githubId },
+          update: { name },
+          create: { githubId, email, name },
+        });
+
+        return done(null, user);
+      } catch (error) {
+        return done(error as Error);
+      }
+    }
+  )
+);
+
+export { passport };
+```
+
+</Step>
+
+<Step>
+### Auth routes
+
+`session: false` — OAuth only brokers the sign-in; your own JWT cookies carry the session afterwards.
+
+```ts lineNumbers title="/features/auth/routes/index.ts"
+import express from "express";
+import passport from "passport";
+
+import { logoutHandler } from "@/features/auth/controllers/logoutHandler";
+import { meHandler } from "@/features/auth/controllers/meHandler";
+import { githubCallbackHandler } from "@/features/auth/controllers/githubCallbackHandler";
+import { refreshHandler } from "@/features/auth/controllers/refreshHandler";
+
+const authRouter = express.Router();
+
+authRouter.get("/github", passport.authenticate("github", { session: false }));
+authRouter.get(
+  "/github/callback",
+  passport.authenticate("github", {
+    session: false,
+    failureRedirect: "/auth/github/failure",
+  }),
+  githubCallbackHandler
+);
+authRouter.get("/github/failure", (_req, res) =>
+  res.status(401).json({ message: "GitHub authentication failed" })
+);
+authRouter.post("/refresh", refreshHandler);
+authRouter.get("/logout", logoutHandler);
+authRouter.get("/me", meHandler);
+
+export { authRouter };
+```
+
+</Step>
+
+<Step>
+### GitHub callback handler
+
+Issues the same JWT access/refresh cookie pair as the password-based examples, then redirects back to the frontend already logged in.
+
+```ts lineNumbers title="/features/auth/controllers/githubCallbackHandler.ts"
+import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+
+export const githubCallbackHandler = async (req: Request, res: Response) => {
+  const user = req.user as { id: string };
+
+  const access_token = jwt.sign({ id: user.id }, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+
+  const refresh_token = jwt.sign({ id: user.id }, process.env.JWT_REFRESH_SECRET!, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
+  });
+
+  res.cookie(process.env.REFRESH_TOKEN_COOKIE_NAME!, refresh_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.REFRESH_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  res.cookie(process.env.ACCESS_TOKEN_COOKIE_NAME!, access_token, {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: Number(process.env.ACCESS_TOKEN_COOKIE_MAX_AGE),
+  });
+
+  res.redirect(String(process.env.FRONTEND_URL ?? "http://localhost:3000"));
+};
+```
+
+</Step>
+</Steps>
+
+The `refresh`, `me` and `logout` handlers are identical to the [JWT Express example](/jwt/server/express) — the access-token cookie is the same shape regardless of how the user signed in.
+
+## Official example
+
+- [rest-express-prisma-sso-github-sqlite](https://github.com/smakosh/roll-your-own-auth/tree/main/examples/rest-express-prisma-sso-github-sqlite)
