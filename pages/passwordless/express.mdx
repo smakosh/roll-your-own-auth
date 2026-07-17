@@ -1,0 +1,80 @@
+import { Steps } from 'nextra/components'
+import { FileTree } from 'nextra/components'
+
+## CLI
+
+```sh copy
+npx ryo-auth@latest add passwordless-express-prisma
+```
+
+This copies every file below into your project (under `src/`), shadcn style — then prints the exact dependency install command for your package manager. See all available components with `npx ryo-auth@latest list`.
+
+## Manual Installation
+
+<FileTree>
+  <FileTree.Folder name="src" defaultOpen>
+    <FileTree.Folder name="config">
+      <FileTree.File name="index.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="features">
+      <FileTree.Folder name="auth">
+        <FileTree.Folder name="controllers">
+          <FileTree.File name="magicLinkHandler.ts" />
+          <FileTree.File name="verifyMagicLinkHandler.ts" />
+          <FileTree.File name="meHandler.ts" />
+          <FileTree.File name="logoutHandler.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="middlewares">
+          <FileTree.File name="validate.ts" />
+          <FileTree.File name="auth.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="routes">
+          <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="utils">
+          <FileTree.File name="tokens.ts" />
+          <FileTree.File name="email.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="validation">
+          <FileTree.File name="magicLink.ts" />
+        </FileTree.Folder>
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="server.ts" />
+  </FileTree.Folder>
+</FileTree>
+
+<Steps>
+### Install dependencies
+
+```sh npm2yarn copy
+npm i express dotenv cors jsonwebtoken nodemailer zod @prisma/client cookie-parser
+```
+
+```sh npm2yarn copy
+npm i -D prisma @types/express @types/cors @types/jsonwebtoken @types/nodemailer
+```
+
+### Magic link flow
+
+1. User enters email — `POST /auth/magic-link`.
+2. Server finds/creates user by email, generates a 15-minute magic link JWT.
+3. Server sends email with link: `${FRONTEND_URL}/verify?token=<jwt>`.
+4. User clicks link — frontend calls `POST /auth/verify-magic-link` with token.
+5. Server verifies magic link JWT, generates access + refresh tokens.
+6. Sets refresh cookie, returns user + access token.
+
+### Environment variables
+
+```
+JWT_SECRET=your_jwt_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+MAGIC_LINK_SECRET=your_magic_link_secret
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_pass
+FRONTEND_URL=http://localhost:3000
+CORS_ORIGIN=http://localhost:3000
+```
+</Steps>

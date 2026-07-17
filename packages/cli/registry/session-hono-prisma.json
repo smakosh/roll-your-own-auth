@@ -1,0 +1,67 @@
+{
+  "name": "session-hono-prisma",
+  "type": "auth:server",
+  "dependencies": [
+    "hono",
+    "@hono/node-server",
+    "dotenv",
+    "redis",
+    "connect-redis",
+    "argon2",
+    "zod",
+    "@prisma/client"
+  ],
+  "devDependencies": ["prisma", "tsx"],
+  "files": [
+    {
+      "path": "server.ts",
+      "target": "src/server.ts",
+      "content": "import { config } from \"dotenv\";\nimport { serve } from \"@hono/node-server\";\nimport { Hono } from \"hono\";\nimport { cors } from \"hono/cors\";\nimport { authRouter } from \"@/features/auth/routes\";\n\nconfig();\n\nconst app = new Hono();\n\napp.use(\n  \"*\",\n  cors({\n    origin: String(process.env.CORS_ORIGIN ?? \"http://localhost:3000\").split(\",\"),\n    credentials: true,\n  })\n);\n\napp.route(\"/auth\", authRouter);\n\nconst port = Number(process.env.PORT ?? 4000);\nserve({ fetch: app.fetch, port });\nconsole.log(`Server running on http://localhost:${port}`);\n"
+    },
+    {
+      "path": "features/auth/routes/index.ts",
+      "target": "src/features/auth/routes/index.ts",
+      "content": "import { Hono } from \"hono\";\nimport { validate } from \"@/features/auth/middlewares/validate\";\nimport { signupSchema } from \"@/features/auth/validation/signup\";\nimport { loginSchema } from \"@/features/auth/validation/login\";\nimport { signupHandler } from \"@/features/auth/controllers/signupHandler\";\nimport { loginHandler } from \"@/features/auth/controllers/loginHandler\";\nimport { logoutHandler } from \"@/features/auth/controllers/logoutHandler\";\nimport { meHandler } from \"@/features/auth/controllers/meHandler\";\n\nconst authRouter = new Hono();\n\nauthRouter.post(\"/signup\", validate(signupSchema), signupHandler);\nauthRouter.post(\"/login\", validate(loginSchema), loginHandler);\nauthRouter.get(\"/logout\", logoutHandler);\nauthRouter.get(\"/me\", meHandler);\n\nexport { authRouter };\n"
+    },
+    {
+      "path": "features/auth/middlewares/validate.ts",
+      "target": "src/features/auth/middlewares/validate.ts",
+      "content": "import type { Context, Next } from \"hono\";\nimport type { ZodSchema } from \"zod\";\n\nexport const validate =\n  (schema: ZodSchema) =>\n  async (c: Context, next: Next) => {\n    const body = await c.req.json().catch(() => ({}));\n    const result = schema.safeParse(body);\n\n    if (!result.success) {\n      return c.json(\n        {\n          message: \"Validation failed\",\n          errors: result.error.flatten().fieldErrors,\n        },\n        400\n      );\n    }\n\n    c.set(\"validated\", result.data);\n    return next();\n  };\n"
+    },
+    {
+      "path": "features/auth/controllers/signupHandler.ts",
+      "target": "src/features/auth/controllers/signupHandler.ts",
+      "content": "import type { Context } from \"hono\";\nimport argon2 from \"argon2\";\nimport { prisma } from \"@/config\";\n\nexport const signupHandler = async (c: Context) => {\n  const userDetails = c.get(\"validated\");\n\n  const hashedPassword = await argon2.hash(userDetails.password);\n\n  const user = await prisma.user.create({\n    data: {\n      name: userDetails.name,\n      email: userDetails.email,\n      password: hashedPassword,\n    },\n    select: { id: true, email: true, name: true },\n  });\n\n  return c.json(user, 200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/loginHandler.ts",
+      "target": "src/features/auth/controllers/loginHandler.ts",
+      "content": "import type { Context } from \"hono\";\nimport argon2 from \"argon2\";\nimport { prisma } from \"@/config\";\n\nexport const loginHandler = async (c: Context) => {\n  const credentials = c.get(\"validated\");\n\n  const user = await prisma.user.findUnique({\n    where: { email: credentials.email },\n    select: { id: true, name: true, email: true, password: true },\n  });\n\n  if (!user) {\n    return c.json({ message: \"User not found\" }, 404);\n  }\n\n  const valid = await argon2.verify(user.password, credentials.password);\n  if (!valid) {\n    return c.json({ message: \"Invalid credentials\" }, 401);\n  }\n\n  return c.json({ id: user.id, name: user.name, email: user.email }, 200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/logoutHandler.ts",
+      "target": "src/features/auth/controllers/logoutHandler.ts",
+      "content": "import type { Context } from \"hono\";\n\nexport const logoutHandler = async (c: Context) => {\n  return c.json({ message: \"User logged out successfully\" }, 200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/meHandler.ts",
+      "target": "src/features/auth/controllers/meHandler.ts",
+      "content": "import type { Context } from \"hono\";\nimport { prisma } from \"@/config\";\n\nexport const meHandler = async (c: Context) => {\n  const userId = c.req.query(\"userId\");\n\n  if (!userId) {\n    return c.json({ message: \"Not authenticated\" }, 401);\n  }\n\n  const user = await prisma.user.findUnique({\n    where: { id: userId },\n    select: { id: true, email: true, name: true },\n  });\n\n  return c.json(user, 200);\n};\n"
+    },
+    {
+      "path": "features/auth/validation/login.ts",
+      "target": "src/features/auth/validation/login.ts",
+      "content": "import { z } from \"zod\";\n\nexport const loginSchema = z.object({\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type LoginInput = z.infer<typeof loginSchema>;\n"
+    },
+    {
+      "path": "features/auth/validation/signup.ts",
+      "target": "src/features/auth/validation/signup.ts",
+      "content": "import { z } from \"zod\";\n\nexport const signupSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type SignupInput = z.infer<typeof signupSchema>;\n"
+    },
+    {
+      "path": "config/index.ts",
+      "target": "src/config/index.ts",
+      "content": "import { PrismaClient } from \"@prisma/client\";\n\nexport const prisma = new PrismaClient();\n"
+    }
+  ]
+}

@@ -1,0 +1,333 @@
+import { Steps } from 'nextra/components'
+import { FileTree } from 'nextra/components'
+import { Callout } from 'nextra/components'
+
+## CLI
+
+```sh copy
+npx ryo-auth@latest add session-graphql-prisma
+```
+
+This copies every file below into your project (under `src/`), shadcn style — then prints the exact dependency install command for your package manager. See all available components with `npx ryo-auth@latest list`.
+
+A cookie-session GraphQL API built on [Apollo Server](https://www.apollographql.com/docs/apollo-server). Sessions are stored in Redis and carried by an `HttpOnly` cookie, exactly like the Express and Hono examples — the only difference is the transport. It exposes `signup`, `login` and `logout` mutations plus a `me` query.
+
+## Manual Installation
+
+<FileTree>
+  <FileTree.Folder name="src" defaultOpen>
+    <FileTree.Folder name="config">
+      <FileTree.File name="index.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="features">
+      <FileTree.Folder name="auth">
+        <FileTree.Folder name="graphql">
+          <FileTree.File name="schema.ts" />
+          <FileTree.File name="resolvers.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="validation">
+          <FileTree.File name="login.ts" />
+          <FileTree.File name="signup.ts" />
+        </FileTree.Folder>
+        <FileTree.File name="context.ts" />
+        <FileTree.File name="sessions.ts" />
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="server.ts" />
+  </FileTree.Folder>
+</FileTree>
+
+<Steps>
+### Install dependencies
+
+```sh npm2yarn copy
+npm i @apollo/server graphql graphql-tag dotenv cookie redis connect-redis argon2 zod @prisma/client
+```
+
+```sh npm2yarn copy
+npm i -D prisma tsx @types/cookie
+```
+
+### Server entry
+
+Apollo's standalone server owns the HTTP layer. We pass a `context` factory so every resolver receives the current user id (resolved from the session cookie) plus helpers to set and clear the session.
+
+```ts filename="server.ts" copy
+import { config } from "dotenv";
+import { ApolloServer } from "@apollo/server";
+import { startStandaloneServer } from "@apollo/server/standalone";
+import { typeDefs } from "@/features/auth/graphql/schema";
+import { resolvers } from "@/features/auth/graphql/resolvers";
+import { buildContext, type GraphQLContext } from "@/features/auth/context";
+
+config();
+
+async function main(): Promise<void> {
+  const server = new ApolloServer<GraphQLContext>({ typeDefs, resolvers });
+
+  const port = Number(process.env.PORT ?? 4000);
+  const { url } = await startStandaloneServer(server, {
+    listen: { port },
+    context: buildContext,
+  });
+
+  console.log(`GraphQL server ready at ${url}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+```
+
+### Session store
+
+A tiny Redis-backed store: an opaque session id maps to a user id with a 7-day TTL. Nothing about it is GraphQL-specific.
+
+```ts filename="/features/auth/sessions.ts" copy
+import { randomUUID } from "node:crypto";
+import { createClient } from "redis";
+
+const client = createClient({
+  url: process.env.REDIS_URL ?? "redis://localhost:6379",
+});
+client.on("error", (error: Error) => console.error("Redis error:", error.message));
+client.connect().catch(console.error);
+
+const PREFIX = "auth:";
+const TTL_SECONDS = 60 * 60 * 24 * 7;
+
+export const sessions = {
+  async create(userId: string): Promise<string> {
+    const sid = randomUUID();
+    await client.set(`${PREFIX}${sid}`, userId, { EX: TTL_SECONDS });
+    return sid;
+  },
+  async get(sid: string): Promise<string | null> {
+    return client.get(`${PREFIX}${sid}`);
+  },
+  async destroy(sid: string): Promise<void> {
+    await client.del(`${PREFIX}${sid}`);
+  },
+};
+```
+
+### GraphQL context
+
+The context reads the session cookie off the incoming request, resolves `userId`, and hands resolvers `setSession`/`clearSession` helpers that write the `Set-Cookie` response header.
+
+```ts filename="/features/auth/context.ts" copy
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { parse } from "cookie";
+import { sessions } from "@/features/auth/sessions";
+
+export interface GraphQLContext {
+  req: IncomingMessage;
+  res: ServerResponse;
+  userId: string | null;
+  setSession: (userId: string) => Promise<void>;
+  clearSession: () => Promise<void>;
+}
+
+export const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? "sid";
+
+export async function buildContext({
+  req,
+  res,
+}: {
+  req: IncomingMessage;
+  res: ServerResponse;
+}): Promise<GraphQLContext> {
+  const cookies = parse(req.headers.cookie ?? "");
+  const sessionId = cookies[SESSION_COOKIE];
+  const userId = sessionId ? await sessions.get(sessionId) : null;
+
+  const isProd = process.env.NODE_ENV === "production";
+
+  return {
+    req,
+    res,
+    userId,
+    async setSession(id: string) {
+      const sid = await sessions.create(id);
+      res.setHeader(
+        "Set-Cookie",
+        `${SESSION_COOKIE}=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800${
+          isProd ? "; Secure" : ""
+        }`
+      );
+    },
+    async clearSession() {
+      if (sessionId) await sessions.destroy(sessionId);
+      res.setHeader(
+        "Set-Cookie",
+        `${SESSION_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${
+          isProd ? "; Secure" : ""
+        }`
+      );
+    },
+  };
+}
+```
+
+<Callout type="info">
+  `startStandaloneServer` does not forward cross-origin credentials by default. For a browser client on another origin, mount Apollo on an Express/Hono app with a `cors({ credentials: true })` middleware and an explicit origin allow-list — same as the other server examples.
+</Callout>
+
+### Schema
+
+```ts filename="/features/auth/graphql/schema.ts" copy
+import gql from "graphql-tag";
+
+export const typeDefs = gql`
+  type User {
+    id: ID!
+    name: String!
+    email: String!
+  }
+
+  type Query {
+    me: User
+  }
+
+  type Mutation {
+    signup(name: String!, email: String!, password: String!): User!
+    login(email: String!, password: String!): User!
+    logout: Boolean!
+  }
+`;
+```
+
+### Resolvers
+
+Validation reuses the same zod schemas as the REST examples; failures surface as a `BAD_USER_INPUT` GraphQL error with the flattened field errors. Passwords are hashed and verified with argon2, and a successful `signup`/`login` opens a session.
+
+```ts filename="/features/auth/graphql/resolvers.ts" copy
+import { GraphQLError } from "graphql";
+import argon2 from "argon2";
+import { prisma } from "@/config";
+import type { GraphQLContext } from "@/features/auth/context";
+import { signupSchema } from "@/features/auth/validation/signup";
+import { loginSchema } from "@/features/auth/validation/login";
+
+function validationError(errors: Record<string, string[] | undefined>): GraphQLError {
+  return new GraphQLError("Validation failed", {
+    extensions: { code: "BAD_USER_INPUT", errors },
+  });
+}
+
+export const resolvers = {
+  Query: {
+    me: async (_parent: unknown, _args: unknown, ctx: GraphQLContext) => {
+      if (!ctx.userId) return null;
+      return prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { id: true, email: true, name: true },
+      });
+    },
+  },
+  Mutation: {
+    signup: async (
+      _parent: unknown,
+      args: { name: string; email: string; password: string },
+      ctx: GraphQLContext
+    ) => {
+      const result = signupSchema.safeParse(args);
+      if (!result.success) {
+        throw validationError(result.error.flatten().fieldErrors);
+      }
+
+      const hashedPassword = await argon2.hash(result.data.password);
+      const user = await prisma.user.create({
+        data: {
+          name: result.data.name,
+          email: result.data.email,
+          password: hashedPassword,
+        },
+        select: { id: true, email: true, name: true },
+      });
+
+      await ctx.setSession(user.id);
+      return user;
+    },
+    login: async (
+      _parent: unknown,
+      args: { email: string; password: string },
+      ctx: GraphQLContext
+    ) => {
+      const result = loginSchema.safeParse(args);
+      if (!result.success) {
+        throw validationError(result.error.flatten().fieldErrors);
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { email: result.data.email },
+        select: { id: true, name: true, email: true, password: true },
+      });
+
+      if (!user || !(await argon2.verify(user.password, result.data.password))) {
+        throw new GraphQLError("Invalid credentials", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
+      }
+
+      await ctx.setSession(user.id);
+      return { id: user.id, name: user.name, email: user.email };
+    },
+    logout: async (_parent: unknown, _args: unknown, ctx: GraphQLContext) => {
+      await ctx.clearSession();
+      return true;
+    },
+  },
+};
+```
+
+### Validation schemas
+
+```ts filename="/features/auth/validation/login.ts" copy
+import { z } from "zod";
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+```
+
+```ts filename="/features/auth/validation/signup.ts" copy
+import { z } from "zod";
+
+export const signupSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export type SignupInput = z.infer<typeof signupSchema>;
+```
+
+### Prisma client
+
+```ts filename="/config/index.ts" copy
+import { PrismaClient } from "@prisma/client";
+
+export const prisma = new PrismaClient();
+```
+
+</Steps>
+
+## Trying it out
+
+Start the server, then open [`http://localhost:4000`](http://localhost:4000) for the Apollo Sandbox and run:
+
+```graphql
+mutation {
+  signup(name: "Ada", email: "ada@example.com", password: "supersecret") {
+    id
+    email
+  }
+}
+```
+
+The response sets the session cookie. Follow-up `me` queries return the current user until you call `logout`.

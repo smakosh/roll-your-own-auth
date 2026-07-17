@@ -1,0 +1,28 @@
+{
+  "name": "session-react-router-vite-client",
+  "type": "auth:client",
+  "dependencies": ["react-router-dom", "react", "react-dom", "zod"],
+  "devDependencies": ["@vitejs/plugin-react", "vite"],
+  "files": [
+    {
+      "path": "lib/auth/api.ts",
+      "target": "src/lib/auth/api.ts",
+      "content": "const API_URL = import.meta.env.VITE_API_URL ?? \"http://localhost:4000\";\n\nasync function request<T>(path: string, init?: RequestInit): Promise<T> {\n  const res = await fetch(`${API_URL}${path}`, {\n    ...init,\n    credentials: \"include\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      ...init?.headers,\n    },\n  });\n\n  if (!res.ok) {\n    const body = await res.json().catch(() => ({}));\n    throw new Error(body.message ?? `Request failed (${res.status})`);\n  }\n\n  return (await res.json()) as T;\n}\n\nexport interface User {\n  id: string;\n  name: string;\n  email: string;\n}\n\nexport const authApi = {\n  signup: (input: { name: string; email: string; password: string }) =>\n    request<User>(\"/auth/signup\", {\n      method: \"POST\",\n      body: JSON.stringify(input),\n    }),\n  login: (input: { email: string; password: string }) =>\n    request<User>(\"/auth/login\", {\n      method: \"POST\",\n      body: JSON.stringify(input),\n    }),\n  logout: () => request<{ message: string }>(\"/auth/logout\"),\n  me: () => request<User>(\"/auth/me\"),\n};\n"
+    },
+    {
+      "path": "lib/auth/validation.ts",
+      "target": "src/lib/auth/validation.ts",
+      "content": "import { z } from \"zod\";\n\nexport const loginSchema = z.object({\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport const signupSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type LoginInput = z.infer<typeof loginSchema>;\nexport type SignupInput = z.infer<typeof signupSchema>;\n"
+    },
+    {
+      "path": "routes/login.tsx",
+      "target": "src/routes/login.tsx",
+      "content": "import { redirect, Form, useActionData } from \"react-router-dom\";\nimport { authApi } from \"../lib/auth/api\";\nimport { loginSchema } from \"../lib/auth/validation\";\n\nexport async function loginAction({ request }: { request: Request }) {\n  const formData = await request.formData();\n  const parsed = loginSchema.safeParse({\n    email: formData.get(\"email\"),\n    password: formData.get(\"password\"),\n  });\n\n  if (!parsed.success) {\n    return { error: \"Invalid credentials\" };\n  }\n\n  try {\n    await authApi.login(parsed.data);\n    return redirect(\"/\");\n  } catch (error) {\n    return { error: (error as Error).message };\n  }\n}\n\nexport function LoginPage() {\n  const actionData = useActionData() as { error?: string } | undefined;\n  return (\n    <Form method=\"post\">\n      {actionData?.error ? <p>{actionData.error}</p> : null}\n      <input type=\"email\" name=\"email\" required />\n      <input type=\"password\" name=\"password\" required />\n      <button type=\"submit\">Log in</button>\n    </Form>\n  );\n}\n"
+    },
+    {
+      "path": "router.tsx",
+      "target": "src/router.tsx",
+      "content": "import { createBrowserRouter } from \"react-router-dom\";\nimport { LoginPage, loginAction } from \"./routes/login\";\n\nexport const router = createBrowserRouter([\n  {\n    path: \"/login\",\n    element: <LoginPage />,\n    action: loginAction,\n  },\n]);\n"
+    }
+  ]
+}

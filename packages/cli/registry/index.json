@@ -1,0 +1,222 @@
+{
+  "$schema": "./schema.json",
+  "name": "roll-your-own-auth",
+  "homepage": "https://github.com/smakosh/roll-your-own-auth",
+  "components": [
+    {
+      "name": "session-express-prisma",
+      "type": "auth:server",
+      "title": "Sessions — Express + Prisma",
+      "description": "Cookie session auth for Express using Redis-backed sessions, Prisma, argon2 password hashing and zod validation.",
+      "dependencies": [
+        "express",
+        "dotenv",
+        "express-session",
+        "cors",
+        "redis",
+        "passport",
+        "helmet",
+        "winston",
+        "connect-redis",
+        "argon2",
+        "zod",
+        "@prisma/client"
+      ],
+      "devDependencies": [
+        "prisma",
+        "@types/express",
+        "@types/express-session",
+        "@types/cors",
+        "@types/passport"
+      ]
+    },
+    {
+      "name": "session-hono-prisma",
+      "type": "auth:server",
+      "title": "Sessions — Hono + Prisma",
+      "description": "Cookie session auth for Hono using Redis-backed sessions, Prisma, argon2 password hashing and zod validation.",
+      "dependencies": [
+        "hono",
+        "@hono/node-server",
+        "dotenv",
+        "redis",
+        "connect-redis",
+        "argon2",
+        "zod",
+        "@prisma/client"
+      ],
+      "devDependencies": ["prisma", "tsx"]
+    },
+      {
+        "name": "session-graphql-prisma",
+      "type": "auth:server",
+      "title": "Sessions — GraphQL (Apollo) + Prisma",
+      "description": "Cookie session auth for a GraphQL API using Apollo Server, Redis-backed sessions, Prisma, argon2 password hashing and zod validation. Exposes signup, login, logout mutations and a me query.",
+      "dependencies": [
+        "@apollo/server",
+        "graphql",
+        "graphql-tag",
+        "dotenv",
+        "cookie",
+        "redis",
+        "connect-redis",
+        "argon2",
+        "zod",
+        "@prisma/client"
+      ],
+      "devDependencies": ["prisma", "tsx", "@types/cookie"]
+    },
+    {
+      "name": "session-nextjs-client",
+      "type": "auth:client",
+      "title": "Sessions — Next.js client",
+      "description": "Next.js App Router client for cookie session auth: typed API wrapper, zod validation and server actions for signup, login, logout and me.",
+      "dependencies": ["zod"],
+      "devDependencies": []
+    },
+    {
+      "name": "session-fastify-prisma",
+      "type": "auth:server",
+      "title": "Sessions — Fastify + Prisma",
+      "description": "Cookie session auth for Fastify using Redis-backed sessions, Prisma, argon2 password hashing and zod validation.",
+      "dependencies": [
+        "fastify",
+        "@fastify/cors",
+        "@fastify/cookie",
+        "@fastify/session",
+        "connect-redis",
+        "redis",
+        "dotenv",
+        "argon2",
+        "zod",
+        "@prisma/client"
+      ],
+      "devDependencies": ["prisma", "tsx"]
+    },
+    {
+      "name": "session-remix-client",
+      "type": "auth:client",
+      "title": "Sessions — Remix client",
+      "description": "Remix client for cookie session auth: typed API wrapper, zod validation and a login route with action and form.",
+      "dependencies": ["@remix-run/node", "@remix-run/react", "zod"],
+      "devDependencies": []
+    },
+    {
+      "name": "session-tanstack-router-vite-client",
+      "type": "auth:client",
+      "title": "Sessions — TanStack Router (Vite) client",
+      "description": "TanStack Router + Vite client for cookie session auth: typed API wrapper, zod validation, an auth context provider and a file-based login route.",
+      "dependencies": ["@tanstack/react-router", "react", "react-dom", "zod"],
+      "devDependencies": ["@tanstack/router-plugin", "@vitejs/plugin-react", "vite"]
+    },
+    {
+      "name": "session-tanstack-start-client",
+      "type": "auth:client",
+      "title": "Sessions — TanStack Start client",
+      "description": "TanStack Start client for cookie session auth: typed API wrapper, zod validation, server functions (login, signup, me) with cookie forwarding and a login route.",
+      "dependencies": ["@tanstack/react-start", "@tanstack/react-router", "react", "react-dom", "zod"],
+      "devDependencies": ["vite"]
+    },
+    {
+      "name": "session-react-router-vite-client",
+      "type": "auth:client",
+      "title": "Sessions — React Router (Vite) client",
+      "description": "React Router + Vite client for cookie session auth: typed API wrapper, zod validation and a data-router login route with action.",
+      "dependencies": ["react-router-dom", "react", "react-dom", "zod"],
+      "devDependencies": ["@vitejs/plugin-react", "vite"]
+    },
+      {
+      "name": "jwt-express-prisma",
+      "type": "auth:server",
+      "title": "JWT — Express + Prisma",
+      "description": "JWT auth for Express using access and refresh tokens, Prisma, argon2 password hashing and zod validation.",
+      "dependencies": [
+        "express",
+        "dotenv",
+        "cors",
+        "jsonwebtoken",
+        "argon2",
+        "zod",
+        "@prisma/client",
+        "cookie-parser"
+      ],
+      "devDependencies": [
+        "prisma",
+        "@types/express",
+        "@types/cors",
+        "@types/jsonwebtoken",
+        "@types/cookie-parser"
+      ]
+    },
+    {
+      "name": "jwt-hono-prisma",
+      "type": "auth:server",
+      "title": "JWT — Hono + Prisma",
+      "description": "JWT auth for Hono using access and refresh tokens, Prisma, argon2 password hashing and zod validation.",
+      "dependencies": [
+        "hono",
+        "@hono/node-server",
+        "dotenv",
+        "jsonwebtoken",
+        "argon2",
+        "zod",
+        "@prisma/client"
+      ],
+      "devDependencies": ["prisma", "tsx"]
+    },
+    {
+      "name": "jwt-nextjs-client",
+      "type": "auth:client",
+      "title": "JWT — Next.js client",
+      "description": "Next.js App Router client for JWT auth: typed API wrapper with access token in memory, refresh token in httpOnly cookie, auto-refresh on 401, zod validation and server actions for signup, login, logout and me.",
+      "dependencies": ["zod"],
+      "devDependencies": []
+    },
+    {
+      "name": "sso-github-express-prisma",
+      "type": "auth:server",
+      "title": "SSO — GitHub (Express + Prisma)",
+      "description": "GitHub OAuth single sign-on for Express using Passport.js, Prisma, JWT session tokens and cookie-parser.",
+      "dependencies": [
+        "express",
+        "dotenv",
+        "cors",
+        "passport",
+        "passport-github2",
+        "jsonwebtoken",
+        "@prisma/client",
+        "cookie-parser"
+      ],
+      "devDependencies": [
+        "prisma",
+        "@types/express",
+        "@types/cors",
+        "@types/passport",
+        "@types/passport-github2"
+      ]
+    },
+    {
+      "name": "passwordless-express-prisma",
+      "type": "auth:server",
+      "title": "Passwordless — Express + Prisma",
+      "description": "Passwordless magic-link auth for Express using JWT magic links, nodemailer, Prisma and zod validation.",
+      "dependencies": [
+        "express",
+        "dotenv",
+        "cors",
+        "jsonwebtoken",
+        "nodemailer",
+        "zod",
+        "@prisma/client",
+        "cookie-parser"
+      ],
+      "devDependencies": [
+        "prisma",
+        "@types/express",
+        "@types/cors",
+        "@types/jsonwebtoken",
+        "@types/nodemailer"
+      ]
+    }
+  ]
+}

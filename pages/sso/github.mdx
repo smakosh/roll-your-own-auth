@@ -1,0 +1,74 @@
+import { Steps } from 'nextra/components'
+import { FileTree } from 'nextra/components'
+
+## CLI
+
+```sh copy
+npx ryo-auth@latest add sso-github-express-prisma
+```
+
+This copies every file below into your project (under `src/`), shadcn style — then prints the exact dependency install command for your package manager. See all available components with `npx ryo-auth@latest list`.
+
+## Manual Installation
+
+<FileTree>
+  <FileTree.Folder name="src" defaultOpen>
+    <FileTree.Folder name="config">
+      <FileTree.File name="index.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="features">
+      <FileTree.Folder name="auth">
+        <FileTree.Folder name="config">
+          <FileTree.File name="passport.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="controllers">
+          <FileTree.File name="githubCallbackHandler.ts" />
+          <FileTree.File name="meHandler.ts" />
+          <FileTree.File name="logoutHandler.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="middlewares">
+          <FileTree.File name="auth.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="routes">
+          <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="utils">
+          <FileTree.File name="tokens.ts" />
+        </FileTree.Folder>
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="server.ts" />
+  </FileTree.Folder>
+</FileTree>
+
+<Steps>
+### Install dependencies
+
+```sh npm2yarn copy
+npm i express dotenv cors passport passport-github2 jsonwebtoken @prisma/client cookie-parser
+```
+
+```sh npm2yarn copy
+npm i -D prisma @types/express @types/cors @types/passport @types/passport-github2
+```
+
+### OAuth flow
+
+1. Client visits `GET /auth/github` — Passport redirects to GitHub.
+2. GitHub redirects back to `GET /auth/github/callback`.
+3. Handler finds/creates user by `githubId`, generates JWT access + refresh tokens.
+4. Sets refresh token as httpOnly cookie, redirects to frontend with access token in URL query.
+5. Frontend stores access token in memory.
+
+### Environment variables
+
+```
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+GITHUB_CALLBACK_URL=http://localhost:4000/auth/github/callback
+JWT_SECRET=your_jwt_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+CORS_ORIGIN=http://localhost:3000
+FRONTEND_URL=http://localhost:3000
+```
+</Steps>

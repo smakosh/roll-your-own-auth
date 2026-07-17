@@ -1,0 +1,23 @@
+{
+  "name": "session-remix-client",
+  "type": "auth:client",
+  "dependencies": ["@remix-run/node", "@remix-run/react", "zod"],
+  "devDependencies": [],
+  "files": [
+    {
+      "path": "lib/auth/api.ts",
+      "target": "app/lib/auth/api.ts",
+      "content": "const API_URL = process.env.API_URL ?? \"http://localhost:4000\";\n\nasync function request<T>(\n  path: string,\n  init?: RequestInit,\n  cookie?: string\n): Promise<T> {\n  const res = await fetch(`${API_URL}${path}`, {\n    ...init,\n    credentials: \"include\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      ...(cookie ? { cookie } : {}),\n      ...init?.headers,\n    },\n  });\n\n  if (!res.ok) {\n    const body = await res.json().catch(() => ({}));\n    throw new Error(body.message ?? `Request failed (${res.status})`);\n  }\n\n  return (await res.json()) as T;\n}\n\nexport interface User {\n  id: string;\n  name: string;\n  email: string;\n}\n\nexport const authApi = {\n  signup: (input: { name: string; email: string; password: string }) =>\n    request<User>(\"/auth/signup\", {\n      method: \"POST\",\n      body: JSON.stringify(input),\n    }),\n  login: (input: { email: string; password: string }) =>\n    request<User>(\"/auth/login\", {\n      method: \"POST\",\n      body: JSON.stringify(input),\n    }),\n  logout: (cookie?: string) =>\n    request<{ message: string }>(\"/auth/logout\", undefined, cookie),\n  me: (cookie?: string) => request<User>(\"/auth/me\", undefined, cookie),\n};\n"
+    },
+    {
+      "path": "lib/auth/validation.ts",
+      "target": "app/lib/auth/validation.ts",
+      "content": "import { z } from \"zod\";\n\nexport const loginSchema = z.object({\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport const signupSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type LoginInput = z.infer<typeof loginSchema>;\nexport type SignupInput = z.infer<typeof signupSchema>;\n"
+    },
+    {
+      "path": "routes/login.tsx",
+      "target": "app/routes/login.tsx",
+      "content": "import type { ActionFunctionArgs } from \"@remix-run/node\";\nimport { json, redirect } from \"@remix-run/node\";\nimport { Form, useActionData } from \"@remix-run/react\";\nimport { authApi } from \"~/lib/auth/api\";\nimport { loginSchema } from \"~/lib/auth/validation\";\n\nexport async function action({ request }: ActionFunctionArgs) {\n  const formData = await request.formData();\n  const parsed = loginSchema.safeParse({\n    email: formData.get(\"email\"),\n    password: formData.get(\"password\"),\n  });\n\n  if (!parsed.success) {\n    return json({ error: \"Invalid credentials\" }, { status: 400 });\n  }\n\n  try {\n    await authApi.login(parsed.data);\n    return redirect(\"/\");\n  } catch (error) {\n    return json({ error: (error as Error).message }, { status: 401 });\n  }\n}\n\nexport default function Login() {\n  const actionData = useActionData<typeof action>();\n  return (\n    <Form method=\"post\">\n      {actionData?.error ? <p>{actionData.error}</p> : null}\n      <input type=\"email\" name=\"email\" required />\n      <input type=\"password\" name=\"password\" required />\n      <button type=\"submit\">Log in</button>\n    </Form>\n  );\n}\n"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+import { FileTree } from 'nextra/components'
+
+## CLI
+
+```sh copy
+npx ryo-auth@latest add session-fastify-prisma
+```
+
+This copies every file below into your project (under `src/`), shadcn style — then prints the exact dependency install command for your package manager. See all available components with `npx ryo-auth@latest list`.
+
+## Manual Installation
+
+<FileTree>
+  <FileTree.Folder name="src" defaultOpen>
+    <FileTree.Folder name="config">
+      <FileTree.File name="index.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="features">
+      <FileTree.Folder name="auth">
+        <FileTree.Folder name="controllers">
+          <FileTree.File name="signupHandler.ts" />
+          <FileTree.File name="loginHandler.ts" />
+          <FileTree.File name="logoutHandler.ts" />
+          <FileTree.File name="meHandler.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="middlewares">
+          <FileTree.File name="validate.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="routes">
+          <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="types">
+          <FileTree.File name="index.ts" />
+        </FileTree.Folder>
+        <FileTree.Folder name="validation">
+          <FileTree.File name="login.ts" />
+          <FileTree.File name="signup.ts" />
+        </FileTree.Folder>
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="server.ts" />
+  </FileTree.Folder>
+</FileTree>
+
+The server ships a Fastify app with `@fastify/cors`, `@fastify/cookie`, `@fastify/session` backed by Redis via `connect-redis`, argon2 password hashing, zod validation, and routes for signup, login, logout and me.

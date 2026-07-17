@@ -1,0 +1,27 @@
+import { FileTree } from 'nextra/components'
+
+## CLI
+
+```sh copy
+npx ryo-auth@latest add session-remix-client
+```
+
+This copies every file below into your project (under `app/`), shadcn style — then prints the exact dependency install command for your package manager. See all available components with `npx ryo-auth@latest list`.
+
+## Manual Installation
+
+<FileTree>
+  <FileTree.Folder name="app" defaultOpen>
+    <FileTree.Folder name="lib">
+      <FileTree.Folder name="auth" defaultOpen>
+        <FileTree.File name="api.ts" />
+        <FileTree.File name="validation.ts" />
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.Folder name="routes">
+      <FileTree.File name="login.tsx" />
+    </FileTree.Folder>
+  </FileTree.Folder>
+</FileTree>
+
+The client ships a typed `authApi` wrapper with cookie forwarding for server-side requests, zod schemas, and a `/login` route with an action and form.

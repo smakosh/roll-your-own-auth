@@ -1,37 +1,20 @@
 {
-  "name": "roll-your-own-auth",
-  "private": true,
-  "license": "MIT",
-  "type": "module",
-  "author": {
-    "name": "smakosh",
-    "url": "https://smakosh.com"
-  },
-  "workspaces": [
-    "apps/*",
-    "examples/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "build": "turbo build",
-    "build:cli": "turbo --filter=ryo-auth build",
-    "dev": "turbo dev --parallel",
-    "cli:dev": "turbo --filter=ryo-auth dev",
-    "cli:start": "pnpm --filter=ryo-auth start",
-    "docs:dev": "pnpm --filter=docs dev",
-    "lint": "turbo lint",
-    "test": "turbo test",
-    "typecheck": "turbo typecheck",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "release": "changeset version"
-  },
-  "devDependencies": {
-    "@changesets/cli": "^2.31.0",
-    "prettier": "^3.9.5",
-    "turbo": "^2.10.4"
-  },
-  "packageManager": "pnpm@11.11.0",
-  "engines": {
-    "node": ">=20"
-  }
+	"name": "roll-your-own-auth",
+	"author": {
+		"name": "Ismail Ghallou",
+		"email": "hello@smakosh.com",
+		"url": "https://smakosh.com"
+	},
+	"scripts": {
+		"dev": "next",
+		"build": "next build",
+		"start": "next start"
+	},
+	"dependencies": {
+		"next": "^14.0.4",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
+		"nextra": "^2.13.2",
+		"nextra-theme-docs": "^2.13.2"
+	}
 }

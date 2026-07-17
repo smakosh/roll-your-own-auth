@@ -1,0 +1,68 @@
+{
+  "name": "sso-github-express-prisma",
+  "type": "auth:server",
+  "dependencies": [
+    "express",
+    "dotenv",
+    "cors",
+    "passport",
+    "passport-github2",
+    "jsonwebtoken",
+    "@prisma/client",
+    "cookie-parser"
+  ],
+  "devDependencies": [
+    "prisma",
+    "@types/express",
+    "@types/cors",
+    "@types/passport",
+    "@types/passport-github2"
+  ],
+  "files": [
+    {
+      "path": "server.ts",
+      "target": "src/server.ts",
+      "content": "import { config } from \"dotenv\";\nimport express from \"express\";\nimport cors from \"cors\";\nimport passport from \"passport\";\nimport cookieParser from \"cookie-parser\";\n\nimport { authRouter } from \"@/features/auth/routes\";\nimport \"@/features/auth/config/passport\";\n\nconfig();\n\nconst app = express();\n\napp.use(\n  cors({\n    origin: process.env.CORS_ORIGIN,\n    credentials: true,\n    optionsSuccessStatus: 200,\n  })\n);\napp.use(express.json());\napp.use(cookieParser());\napp.use(passport.initialize());\n\napp.use(\"/auth\", authRouter);\n\nconst PORT = process.env.PORT || 4000;\n\napp.listen(PORT, () => {\n  console.log(`Server is running on port ${PORT}`);\n});\n"
+    },
+    {
+      "path": "features/auth/routes/index.ts",
+      "target": "src/features/auth/routes/index.ts",
+      "content": "import express from \"express\";\nimport passport from \"passport\";\n\nimport { auth } from \"@/features/auth/middlewares/auth\";\nimport { githubCallbackHandler } from \"@/features/auth/controllers/githubCallbackHandler\";\nimport { meHandler } from \"@/features/auth/controllers/meHandler\";\nimport { logoutHandler } from \"@/features/auth/controllers/logoutHandler\";\n\nconst authRouter = express.Router();\n\nauthRouter.get(\"/github\", passport.authenticate(\"github\", { session: false }));\nauthRouter.get(\n  \"/github/callback\",\n  passport.authenticate(\"github\", { session: false }),\n  githubCallbackHandler\n);\nauthRouter.get(\"/me\", auth, meHandler);\nauthRouter.post(\"/logout\", auth, logoutHandler);\n\nexport { authRouter };\n"
+    },
+    {
+      "path": "features/auth/config/passport.ts",
+      "target": "src/features/auth/config/passport.ts",
+      "content": "import passport from \"passport\";\nimport { Strategy as GitHubStrategy } from \"passport-github2\";\nimport { prisma } from \"@/config\";\n\npassport.use(\n  new GitHubStrategy(\n    {\n      clientID: String(process.env.GITHUB_CLIENT_ID),\n      clientSecret: String(process.env.GITHUB_CLIENT_SECRET),\n      callbackURL: String(process.env.GITHUB_CALLBACK_URL),\n    },\n    async (_accessToken, _refreshToken, profile, done) => {\n      try {\n        const githubId = profile.id;\n        const email = profile.emails?.[0]?.value ?? \"\";\n        const name = profile.displayName || profile.username || \"\";\n\n        let user = await prisma.user.findUnique({\n          where: { githubId: String(githubId) },\n        });\n\n        if (!user) {\n          user = await prisma.user.create({\n            data: {\n              name,\n              email,\n              githubId: String(githubId),\n            },\n          });\n        }\n\n        return done(null, user);\n      } catch (error) {\n        return done(error as Error);\n      }\n    }\n  )\n);\n\nexport { passport };\n"
+    },
+    {
+      "path": "features/auth/controllers/githubCallbackHandler.ts",
+      "target": "src/features/auth/controllers/githubCallbackHandler.ts",
+      "content": "import { Request, Response } from \"express\";\nimport { generateAccessToken, generateRefreshToken } from \"@/features/auth/utils/tokens\";\n\nexport const githubCallbackHandler = async (req: Request, res: Response) => {\n  const user = req.user as { id: string; name: string; email: string };\n\n  const accessToken = generateAccessToken(user.id);\n  const refreshToken = generateRefreshToken(user.id);\n\n  const isProd = process.env.NODE_ENV === \"production\";\n  res.cookie(\"refreshToken\", refreshToken, {\n    httpOnly: true,\n    sameSite: \"lax\",\n    maxAge: 7 * 24 * 60 * 60 * 1000,\n    secure: isProd,\n  });\n\n  const frontendUrl = String(process.env.FRONTEND_URL ?? \"http://localhost:3000\");\n  res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/meHandler.ts",
+      "target": "src/features/auth/controllers/meHandler.ts",
+      "content": "import { Request, Response } from \"express\";\nimport { prisma } from \"@/config\";\n\nexport const meHandler = async (req: Request, res: Response) => {\n  const userId = (req as any).userId;\n\n  const user = await prisma.user.findUnique({\n    where: { id: userId },\n    select: { id: true, name: true, email: true },\n  });\n\n  return res.json(user).status(200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/logoutHandler.ts",
+      "target": "src/features/auth/controllers/logoutHandler.ts",
+      "content": "import { Request, Response } from \"express\";\n\nexport const logoutHandler = async (req: Request, res: Response) => {\n  res.clearCookie(\"refreshToken\");\n  return res.json({ message: \"Logged out successfully\" }).status(200);\n};\n"
+    },
+    {
+      "path": "features/auth/middlewares/auth.ts",
+      "target": "src/features/auth/middlewares/auth.ts",
+      "content": "import { Request, Response, NextFunction } from \"express\";\nimport { verifyToken } from \"@/features/auth/utils/tokens\";\n\nexport const auth = (req: Request, res: Response, next: NextFunction) => {\n  const authHeader = req.headers.authorization;\n\n  if (!authHeader || !authHeader.startsWith(\"Bearer \")) {\n    return res.status(401).json({ message: \"Unauthorized\" });\n  }\n\n  const token = authHeader.split(\" \")[1];\n\n  try {\n    const decoded = verifyToken(token, String(process.env.JWT_SECRET)) as {\n      userId: string;\n    };\n    (req as any).userId = decoded.userId;\n    return next();\n  } catch {\n    return res.status(401).json({ message: \"Unauthorized\" });\n  }\n};\n"
+    },
+    {
+      "path": "features/auth/utils/tokens.ts",
+      "target": "src/features/auth/utils/tokens.ts",
+      "content": "import jwt from \"jsonwebtoken\";\n\nexport function generateAccessToken(userId: string): string {\n  return jwt.sign({ userId }, String(process.env.JWT_SECRET), {\n    expiresIn: \"15m\",\n  });\n}\n\nexport function generateRefreshToken(userId: string): string {\n  return jwt.sign({ userId }, String(process.env.JWT_REFRESH_SECRET), {\n    expiresIn: \"7d\",\n  });\n}\n\nexport function verifyToken(token: string, secret: string): unknown {\n  return jwt.verify(token, secret);\n}\n"
+    },
+    {
+      "path": "config/index.ts",
+      "target": "src/config/index.ts",
+      "content": "import { PrismaClient } from \"@prisma/client\";\n\nexport const prisma = new PrismaClient();\n"
+    }
+  ]
+}

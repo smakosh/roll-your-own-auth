@@ -1,60 +1,47 @@
 {
   "name": "ryo-auth",
   "version": "0.1.0",
-  "description": "Roll your own auth to your apps.",
-  "publishConfig": {
-    "access": "public"
-  },
-  "license": "MIT",
-  "author": {
-    "name": "Smakosh",
-    "url": "https://smakosh.com"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/smakosh/roll-your-own-auth.git",
-    "directory": "packages/cli"
-  },
-  "files": [
-    "dist"
-  ],
+  "description": "Add copy-paste auth code to your project, shadcn style. Roll your own auth.",
   "keywords": [
     "auth",
+    "authentication",
+    "cli",
     "sessions",
-    "jwt",
-    "sso"
+    "express",
+    "roll-your-own-auth"
   ],
+  "author": {
+    "name": "Ismail Ghallou",
+    "email": "hello@smakosh.com",
+    "url": "https://smakosh.com"
+  },
+  "license": "MIT",
   "type": "module",
-  "exports": "./dist/index.js",
   "bin": {
     "ryo-auth": "./dist/index.js"
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "files": [
+    "dist",
+    "registry"
+  ],
   "scripts": {
-    "dev": "tsup --watch",
     "build": "tsup",
+    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "start": "node dist/index.js",
-    "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
-    "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
-    "release": "changeset version",
-    "pub:beta": "pnpm build && pnpm publish --no-git-checks --access public --tag beta",
-    "pub:next": "pnpm build && pnpm publish --no-git-checks --access public --tag next",
-    "pub:release": "pnpm build && pnpm publish --access public"
+    "start": "node dist/index.js"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.5.2",
-    "chalk": "^5.6.2",
-    "commander": "^15.0.0"
+    "commander": "^12.1.0",
+    "kleur": "^4.1.5",
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "@types/node": "^20.11.0",
+    "@types/prompts": "^2.4.9",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

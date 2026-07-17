@@ -1,0 +1,74 @@
+{
+  "name": "session-fastify-prisma",
+  "type": "auth:server",
+  "dependencies": [
+    "fastify",
+    "@fastify/cors",
+    "@fastify/cookie",
+    "@fastify/session",
+    "connect-redis",
+    "redis",
+    "dotenv",
+    "argon2",
+    "zod",
+    "@prisma/client"
+  ],
+  "devDependencies": ["prisma", "tsx"],
+  "files": [
+    {
+      "path": "server.ts",
+      "target": "src/server.ts",
+      "content": "import { config } from \"dotenv\";\nimport Fastify from \"fastify\";\nimport cors from \"@fastify/cors\";\nimport cookie from \"@fastify/cookie\";\nimport session from \"@fastify/session\";\nimport RedisStore from \"connect-redis\";\nimport { createClient } from \"redis\";\nimport { authRoutes } from \"@/features/auth/routes\";\n\nconfig();\n\nasync function main(): Promise<void> {\n  const app = Fastify({ logger: true });\n\n  const redisClient = createClient();\n  await redisClient.connect();\n\n  await app.register(cors, {\n    origin: String(process.env.CORS_ORIGIN ?? \"http://localhost:3000\").split(\",\"),\n    credentials: true,\n  });\n\n  await app.register(cookie);\n  await app.register(session, {\n    secret: String(process.env.SESSION_SECRET),\n    store: new RedisStore({ client: redisClient, prefix: \"auth:\" }),\n    cookieName: process.env.SESSION_COOKIE_NAME ?? \"sid\",\n    cookie: { secure: process.env.NODE_ENV === \"production\", httpOnly: true },\n  });\n\n  await app.register(authRoutes, { prefix: \"/auth\" });\n\n  const port = Number(process.env.PORT ?? 4000);\n  await app.listen({ port });\n}\n\nmain().catch((err) => {\n  console.error(err);\n  process.exit(1);\n});\n"
+    },
+    {
+      "path": "features/auth/routes/index.ts",
+      "target": "src/features/auth/routes/index.ts",
+      "content": "import type { FastifyInstance } from \"fastify\";\nimport { validate } from \"@/features/auth/middlewares/validate\";\nimport { signupSchema } from \"@/features/auth/validation/signup\";\nimport { loginSchema } from \"@/features/auth/validation/login\";\nimport { signupHandler } from \"@/features/auth/controllers/signupHandler\";\nimport { loginHandler } from \"@/features/auth/controllers/loginHandler\";\nimport { logoutHandler } from \"@/features/auth/controllers/logoutHandler\";\nimport { meHandler } from \"@/features/auth/controllers/meHandler\";\n\nexport async function authRoutes(app: FastifyInstance): Promise<void> {\n  app.post(\"/signup\", { preHandler: validate(signupSchema) }, signupHandler);\n  app.post(\"/login\", { preHandler: validate(loginSchema) }, loginHandler);\n  app.get(\"/logout\", logoutHandler);\n  app.get(\"/me\", meHandler);\n}\n"
+    },
+    {
+      "path": "features/auth/middlewares/validate.ts",
+      "target": "src/features/auth/middlewares/validate.ts",
+      "content": "import type { FastifyRequest, FastifyReply } from \"fastify\";\nimport type { ZodSchema } from \"zod\";\n\nexport const validate =\n  (schema: ZodSchema) =>\n  async (req: FastifyRequest, reply: FastifyReply) => {\n    const result = schema.safeParse(req.body);\n\n    if (!result.success) {\n      return reply.status(400).send({\n        message: \"Validation failed\",\n        errors: result.error.flatten().fieldErrors,\n      });\n    }\n\n    req.body = result.data;\n  };\n"
+    },
+    {
+      "path": "features/auth/controllers/signupHandler.ts",
+      "target": "src/features/auth/controllers/signupHandler.ts",
+      "content": "import type { FastifyRequest, FastifyReply } from \"fastify\";\nimport argon2 from \"argon2\";\nimport { prisma } from \"@/config\";\n\nexport const signupHandler = async (req: FastifyRequest, reply: FastifyReply) => {\n  const details = req.body as { name: string; email: string; password: string };\n\n  const hashedPassword = await argon2.hash(details.password);\n\n  const user = await prisma.user.create({\n    data: { name: details.name, email: details.email, password: hashedPassword },\n    select: { id: true, email: true, name: true },\n  });\n\n  req.session.userId = String(user.id);\n\n  return reply.status(200).send(user);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/loginHandler.ts",
+      "target": "src/features/auth/controllers/loginHandler.ts",
+      "content": "import type { FastifyRequest, FastifyReply } from \"fastify\";\nimport argon2 from \"argon2\";\nimport { prisma } from \"@/config\";\n\nexport const loginHandler = async (req: FastifyRequest, reply: FastifyReply) => {\n  const credentials = req.body as { email: string; password: string };\n\n  const user = await prisma.user.findUnique({\n    where: { email: credentials.email },\n    select: { id: true, name: true, email: true, password: true },\n  });\n\n  if (!user) {\n    return reply.status(404).send({ message: \"User not found\" });\n  }\n\n  const valid = await argon2.verify(user.password, credentials.password);\n  if (!valid) {\n    return reply.status(401).send({ message: \"Invalid credentials\" });\n  }\n\n  req.session.userId = String(user.id);\n\n  return reply.status(200).send({ id: user.id, name: user.name, email: user.email });\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/logoutHandler.ts",
+      "target": "src/features/auth/controllers/logoutHandler.ts",
+      "content": "import type { FastifyRequest, FastifyReply } from \"fastify\";\n\nexport const logoutHandler = async (req: FastifyRequest, reply: FastifyReply) => {\n  await req.session.destroy();\n  return reply.status(200).send({ message: \"User logged out successfully\" });\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/meHandler.ts",
+      "target": "src/features/auth/controllers/meHandler.ts",
+      "content": "import type { FastifyRequest, FastifyReply } from \"fastify\";\nimport { prisma } from \"@/config\";\n\nexport const meHandler = async (req: FastifyRequest, reply: FastifyReply) => {\n  const userId = req.session.userId;\n\n  if (!userId) {\n    return reply.status(401).send({ message: \"Not authenticated\" });\n  }\n\n  const user = await prisma.user.findUnique({\n    where: { id: userId },\n    select: { id: true, email: true, name: true },\n  });\n\n  return reply.status(200).send(user);\n};\n"
+    },
+    {
+      "path": "features/auth/validation/login.ts",
+      "target": "src/features/auth/validation/login.ts",
+      "content": "import { z } from \"zod\";\n\nexport const loginSchema = z.object({\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type LoginInput = z.infer<typeof loginSchema>;\n"
+    },
+    {
+      "path": "features/auth/validation/signup.ts",
+      "target": "src/features/auth/validation/signup.ts",
+      "content": "import { z } from \"zod\";\n\nexport const signupSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type SignupInput = z.infer<typeof signupSchema>;\n"
+    },
+    {
+      "path": "features/auth/types/index.ts",
+      "target": "src/features/auth/types/index.ts",
+      "content": "import \"@fastify/session\";\n\ndeclare module \"fastify\" {\n  interface Session {\n    userId?: string;\n  }\n}\n"
+    },
+    {
+      "path": "config/index.ts",
+      "target": "src/config/index.ts",
+      "content": "import { PrismaClient } from \"@prisma/client\";\n\nexport const prisma = new PrismaClient();\n"
+    }
+  ]
+}

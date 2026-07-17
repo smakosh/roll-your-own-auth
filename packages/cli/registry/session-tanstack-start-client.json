@@ -1,0 +1,28 @@
+{
+  "name": "session-tanstack-start-client",
+  "type": "auth:client",
+  "dependencies": ["@tanstack/react-start", "@tanstack/react-router", "react", "react-dom", "zod"],
+  "devDependencies": ["vite"],
+  "files": [
+    {
+      "path": "lib/auth/api.ts",
+      "target": "src/lib/auth/api.ts",
+      "content": "const API_URL = process.env.API_URL ?? \"http://localhost:4000\";\n\nasync function request<T>(\n  path: string,\n  init?: RequestInit,\n  cookie?: string\n): Promise<T> {\n  const res = await fetch(`${API_URL}${path}`, {\n    ...init,\n    credentials: \"include\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      ...(cookie ? { cookie } : {}),\n      ...init?.headers,\n    },\n  });\n\n  if (!res.ok) {\n    const body = await res.json().catch(() => ({}));\n    throw new Error(body.message ?? `Request failed (${res.status})`);\n  }\n\n  return (await res.json()) as T;\n}\n\nexport interface User {\n  id: string;\n  name: string;\n  email: string;\n}\n\nexport const authApi = {\n  signup: (input: { name: string; email: string; password: string }, cookie?: string) =>\n    request<User>(\"/auth/signup\", {\n      method: \"POST\",\n      body: JSON.stringify(input),\n    }, cookie),\n  login: (input: { email: string; password: string }, cookie?: string) =>\n    request<User>(\"/auth/login\", {\n      method: \"POST\",\n      body: JSON.stringify(input),\n    }, cookie),\n  logout: (cookie?: string) =>\n    request<{ message: string }>(\"/auth/logout\", undefined, cookie),\n  me: (cookie?: string) => request<User>(\"/auth/me\", undefined, cookie),\n};\n"
+    },
+    {
+      "path": "lib/auth/validation.ts",
+      "target": "src/lib/auth/validation.ts",
+      "content": "import { z } from \"zod\";\n\nexport const loginSchema = z.object({\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport const signupSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type LoginInput = z.infer<typeof loginSchema>;\nexport type SignupInput = z.infer<typeof signupSchema>;\n"
+    },
+    {
+      "path": "lib/auth/server.ts",
+      "target": "src/lib/auth/server.ts",
+      "content": "import { createServerFn } from \"@tanstack/react-start\";\nimport { getRequestHeader } from \"@tanstack/react-start/server\";\nimport { authApi } from \"./api\";\nimport { loginSchema, signupSchema } from \"./validation\";\n\nexport const loginFn = createServerFn({ method: \"POST\" })\n  .validator(loginSchema)\n  .handler(async ({ data }) => {\n    const cookie = getRequestHeader(\"cookie\");\n    return authApi.login(data, cookie);\n  });\n\nexport const signupFn = createServerFn({ method: \"POST\" })\n  .validator(signupSchema)\n  .handler(async ({ data }) => {\n    const cookie = getRequestHeader(\"cookie\");\n    return authApi.signup(data, cookie);\n  });\n\nexport const meFn = createServerFn({ method: \"GET\" }).handler(async () => {\n  const cookie = getRequestHeader(\"cookie\");\n  try {\n    return await authApi.me(cookie);\n  } catch {\n    return null;\n  }\n});\n"
+    },
+    {
+      "path": "routes/login.tsx",
+      "target": "src/routes/login.tsx",
+      "content": "import { useState } from \"react\";\nimport { createFileRoute, useRouter } from \"@tanstack/react-router\";\nimport { loginFn } from \"../lib/auth/server\";\n\nexport const Route = createFileRoute(\"/login\")({\n  component: LoginPage,\n});\n\nfunction LoginPage() {\n  const router = useRouter();\n  const [error, setError] = useState<string | null>(null);\n\n  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {\n    event.preventDefault();\n    const form = new FormData(event.currentTarget);\n\n    try {\n      await loginFn({\n        data: {\n          email: String(form.get(\"email\")),\n          password: String(form.get(\"password\")),\n        },\n      });\n      router.navigate({ to: \"/\" });\n    } catch (err) {\n      setError((err as Error).message);\n    }\n  }\n\n  return (\n    <form onSubmit={onSubmit}>\n      {error ? <p>{error}</p> : null}\n      <input type=\"email\" name=\"email\" required />\n      <input type=\"password\" name=\"password\" required />\n      <button type=\"submit\">Log in</button>\n    </form>\n  );\n}\n"
+    }
+  ]
+}

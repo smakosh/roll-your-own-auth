@@ -1,0 +1,82 @@
+{
+  "name": "session-express-prisma",
+  "type": "auth:server",
+  "dependencies": [
+    "express",
+    "dotenv",
+    "express-session",
+    "cors",
+    "redis",
+    "passport",
+    "helmet",
+    "winston",
+    "connect-redis",
+    "argon2",
+    "zod",
+    "@prisma/client"
+  ],
+  "devDependencies": [
+    "prisma",
+    "@types/express",
+    "@types/express-session",
+    "@types/cors",
+    "@types/passport"
+  ],
+  "files": [
+    {
+      "path": "server.ts",
+      "target": "src/server.ts",
+      "content": "import { config } from \"dotenv\";\nimport express, { Request, Response } from \"express\";\nimport session from \"express-session\";\nimport cors from \"cors\";\nimport { createClient } from \"redis\";\nimport passport from \"passport\";\nimport helmet from \"helmet\";\nimport winston from \"winston\";\nimport RedisStore from \"connect-redis\";\n\nimport { authRouter } from \"@/features/auth/routes\";\n\nconfig();\n\nconst logger = winston.createLogger({\n  level: \"info\",\n  format: winston.format.json(),\n  defaultMeta: { service: \"user-service\" },\n  transports: [\n    new winston.transports.File({ filename: \"error.log\", level: \"error\" }),\n    new winston.transports.File({ filename: \"combined.log\" }),\n  ],\n});\n\nasync function main(): Promise<void> {\n  const app = express();\n  app.set(\"trust proxy\", 1);\n\n  const redisClient = createClient();\n  redisClient.connect().catch(console.error);\n  const redisStore = new RedisStore({\n    client: redisClient,\n    prefix: \"auth:\",\n    disableTouch: true,\n  });\n\n  redisClient.on(\"error\", (error: Error) => {\n    logger.error(error.message);\n  });\n  redisClient.on(\"connect\", function () {\n    console.log(\n      `Redis connected at ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`\n    );\n  });\n\n  app.use(\n    cors({\n      origin: (origin, callback) => {\n        const origins = String(process.env.CORS_ORIGIN).split(\",\");\n        if (!origin || origins.includes(String(origin))) {\n          callback(null, true);\n        } else {\n          callback(new Error(\"Not allowed.\"), false);\n        }\n      },\n      credentials: true,\n      optionsSuccessStatus: 200,\n    })\n  );\n  app.use(\n    helmet({\n      contentSecurityPolicy:\n        process.env.NODE_ENV === \"production\" ? undefined : false,\n    })\n  );\n  app.use(\n    express.json({\n      limit: \"20mb\",\n    })\n  );\n  app.use(\n    express.urlencoded({\n      extended: true,\n    })\n  );\n  app.use(\n    session({\n      name: process.env.SESSION_COOKIE_NAME,\n      secret: String(process.env.SESSION_SECRET),\n      store: redisStore,\n      cookie: {\n        secure: process.env.NODE_ENV === \"production\",\n        httpOnly: true,\n        maxAge: Number(process.env.SESSION_MAX_AGE),\n        sameSite: \"lax\",\n      },\n      resave: false,\n      saveUninitialized: false,\n    })\n  );\n  app.use(passport.initialize());\n  app.use(passport.session());\n\n  app.get(\"/\", (_req: Request, res: Response) =>\n    res.send(\"Roll Your Own Auth API\")\n  );\n\n  app.use(\"/auth\", authRouter);\n\n  app.listen(process.env.PORT, () => {\n    console.log(\n      `\ud83d\ude80 Server ready at ${process.env.SCHEME}://${process.env.HOST}:${process.env.PORT}`\n    );\n  });\n}\n\nmain().catch((error) => {\n  logger.error(error.message);\n});\n"
+    },
+    {
+      "path": "features/auth/routes/index.ts",
+      "target": "src/features/auth/routes/index.ts",
+      "content": "import express from \"express\";\n\nimport { validate } from \"@/features/auth/middlewares/validate\";\nimport { signupSchema } from \"@/features/auth/validation/signup\";\nimport { loginSchema } from \"@/features/auth/validation/login\";\n\nimport { logoutHandler } from \"@/features/auth/controllers/logoutHandler\";\nimport { meHandler } from \"@/features/auth/controllers/meHandler\";\nimport { signupHandler } from \"@/features/auth/controllers/signupHandler\";\nimport { loginHandler } from \"@/features/auth/controllers/loginHandler\";\n\nconst authRouter = express.Router();\n\nauthRouter.post(\"/signup\", validate(signupSchema), signupHandler);\nauthRouter.post(\"/login\", validate(loginSchema), loginHandler);\nauthRouter.get(\"/logout\", logoutHandler);\nauthRouter.get(\"/me\", meHandler);\n\nexport { authRouter };\n"
+    },
+    {
+      "path": "features/auth/controllers/loginHandler.ts",
+      "target": "src/features/auth/controllers/loginHandler.ts",
+      "content": "import { Request, Response } from \"express\";\nimport argon2 from \"argon2\";\n\nimport { prisma } from \"@/config\";\nimport { CustomSessionData } from \"@/features/auth/types\";\n\nexport const loginHandler = async (req: Request, res: Response) => {\n  const credentials = req.body;\n\n  const user = await prisma.user.findUnique({\n    where: {\n      email: credentials.email,\n    },\n    select: {\n      id: true,\n      name: true,\n      email: true,\n      password: true,\n    },\n  });\n\n  if (!user) {\n    return res\n      .json({\n        message: \"User not found\",\n      })\n      .status(404);\n  }\n\n  await argon2.verify(user.password, credentials.password).catch();\n\n  (req.session as CustomSessionData).userId = String(user.id);\n\n  const userData = {\n    id: user.id,\n    name: user.name,\n    email: user.email,\n  };\n\n  return res.json(userData).status(200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/signupHandler.ts",
+      "target": "src/features/auth/controllers/signupHandler.ts",
+      "content": "import { Request, Response } from \"express\";\nimport argon2 from \"argon2\";\n\nimport { prisma } from \"@/config\";\nimport { CustomSessionData } from \"@/features/auth/types\";\n\nexport const signupHandler = async (req: Request, res: Response) => {\n  const userDetails = req.body;\n\n  const hashedPasword = await argon2.hash(userDetails.password);\n\n  const user = await prisma.user.create({\n    data: {\n      name: userDetails.name,\n      email: userDetails.email,\n      password: hashedPasword,\n    },\n    select: {\n      id: true,\n      email: true,\n      name: true,\n      posts: true,\n    },\n  });\n\n  (req.session as CustomSessionData).userId = String(user.id);\n\n  return res.json(user).status(200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/meHandler.ts",
+      "target": "src/features/auth/controllers/meHandler.ts",
+      "content": "import { Request, Response } from \"express\";\n\nimport { CustomSessionData } from \"@/features/auth/types\";\nimport { prisma } from \"@/config\";\n\nexport const meHandler = async (req: Request, res: Response) => {\n  const session: CustomSessionData = req.session;\n  const sessionId: string | undefined = session.userId;\n  const userId = (req?.user as any)?.id;\n\n  if (!sessionId && !userId) {\n    return res.json({ message: \"User already logged out.\" }).status(400);\n  }\n\n  const remainingTime = session.cookie.maxAge || 0;\n\n  if (remainingTime <= 0) {\n    return res.json({ message: \"Session has expired.\" }).status(401);\n  }\n\n  const user = await prisma.user.findUnique({\n    where: {\n      id: sessionId || userId,\n    },\n    select: {\n      id: true,\n      email: true,\n      name: true,\n    },\n  });\n\n  return res.json(user).status(200);\n};\n"
+    },
+    {
+      "path": "features/auth/controllers/logoutHandler.ts",
+      "target": "src/features/auth/controllers/logoutHandler.ts",
+      "content": "import { Request, Response } from \"express\";\n\nexport const logoutHandler = async (req: Request, res: Response) => {\n  req.session.destroy((err) => {\n    if (process.env.SESSION_COOKIE_NAME) {\n      res.clearCookie(process.env.SESSION_COOKIE_NAME);\n    }\n    if (err) {\n      res\n        .json({\n          message: err.message,\n        })\n        .status(400);\n    }\n\n    res\n      .json({\n        message: \"User logged out succcessfully\",\n      })\n      .status(200);\n  });\n};\n"
+    },
+    {
+      "path": "features/auth/middlewares/validate.ts",
+      "target": "src/features/auth/middlewares/validate.ts",
+      "content": "import { Request, Response, NextFunction } from \"express\";\nimport { ZodSchema } from \"zod\";\n\nexport const validate =\n  (schema: ZodSchema) =>\n  (req: Request, res: Response, next: NextFunction) => {\n    const result = schema.safeParse(req.body);\n\n    if (!result.success) {\n      return res.status(400).json({\n        message: \"Validation failed\",\n        errors: result.error.flatten().fieldErrors,\n      });\n    }\n\n    req.body = result.data;\n    return next();\n  };\n"
+    },
+    {
+      "path": "features/auth/validation/login.ts",
+      "target": "src/features/auth/validation/login.ts",
+      "content": "import { z } from \"zod\";\n\nexport const loginSchema = z.object({\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type LoginInput = z.infer<typeof loginSchema>;\n"
+    },
+    {
+      "path": "features/auth/validation/signup.ts",
+      "target": "src/features/auth/validation/signup.ts",
+      "content": "import { z } from \"zod\";\n\nexport const signupSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email(),\n  password: z.string().min(8),\n});\n\nexport type SignupInput = z.infer<typeof signupSchema>;\n"
+    },
+    {
+      "path": "features/auth/types/index.ts",
+      "target": "src/features/auth/types/index.ts",
+      "content": "import { Session } from \"express-session\";\n\nexport interface CustomSessionData extends Session {\n  userId?: string;\n}\n"
+    },
+    {
+      "path": "config/index.ts",
+      "target": "src/config/index.ts",
+      "content": "import { PrismaClient } from \"@prisma/client\";\n\nexport const prisma = new PrismaClient();\n"
+    }
+  ]
+}
